@@ -1,0 +1,18 @@
+[project]
+name = "contentbrain"
+version = "0.1.0"
+description = "Ecosistema de agentes autónomos para automatizar investigación, planificación y redacción de contenido"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "apify-client>=2.5.0",
+    "google-generativeai>=0.8.6",
+    "langgraph>=1.0.8",
+    "langgraph-checkpoint>=4.0.0",
+    "openai>=2.21.0",
+    "python-dotenv>=1.2.1",
+    "qdrant-client>=1.16.2",
+    "streamlit>=1.54.0",
+    "weasyprint>=68.1",
+    "yt-dlp>=2026.2.4",
+]
