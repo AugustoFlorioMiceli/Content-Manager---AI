@@ -6,7 +6,7 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "apify-client>=2.5.0",
-    "google-generativeai>=0.8.6",
+    "google-genai>=1.63.0",
     "langgraph>=1.0.8",
     "langgraph-checkpoint>=4.0.0",
     "openai>=2.21.0",
