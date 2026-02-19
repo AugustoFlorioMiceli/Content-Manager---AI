@@ -32,3 +32,33 @@ class ContentCalendar(BaseModel):
     briefs: list[ContentBrief]
     strategy_summary: str
     pillar_distribution: dict[str, int]
+
+
+class ScriptSection(BaseModel):
+    title: str
+    content: str
+    notes: str = ""
+
+
+class Script(BaseModel):
+    brief: ContentBrief
+    hook: str
+    sections: list[ScriptSection]
+    cta: str
+    retention_tips: list[str] = []
+    strategic_justification: str = ""
+
+
+class WriterResult(BaseModel):
+    platform: str
+    username: str
+    scripts: list[Script]
+    calendar: ContentCalendar
+
+
+class CompilerResult(BaseModel):
+    markdown_path: str | None = None
+    pdf_path: str | None = None
+    platform: str
+    username: str
+    total_scripts: int

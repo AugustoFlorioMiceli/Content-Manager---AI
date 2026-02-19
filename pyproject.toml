@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "apify-client>=2.5.0",
+    "fpdf2>=2.8.5",
     "google-genai>=1.63.0",
     "langgraph>=1.0.8",
     "langgraph-checkpoint>=4.0.0",
@@ -14,6 +15,5 @@ dependencies = [
     "qdrant-client>=1.16.2",
     "sentence-transformers>=5.2.3",
     "streamlit>=1.54.0",
-    "weasyprint>=68.1",
     "yt-dlp>=2026.2.4",
 ]
