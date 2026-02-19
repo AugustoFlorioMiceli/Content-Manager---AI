@@ -10,12 +10,22 @@ from models.strategy import CompilerResult, Script, WriterResult
 logger = logging.getLogger(__name__)
 
 
-def _strip_emoji(text: str) -> str:
-    return re.sub(
-        r'[\U00010000-\U0010ffff\u2600-\u27bf\u2300-\u23ff\u2b50\u200d\ufe0f]',
-        '',
-        text,
-    ).strip()
+def _sanitize_latin1(text: str) -> str:
+    """Replace characters outside Latin-1 range with safe equivalents."""
+    replacements = {
+        "\u2026": "...",   # …
+        "\u2018": "'",     # '
+        "\u2019": "'",     # '
+        "\u201c": '"',     # "
+        "\u201d": '"',     # "
+        "\u2014": "-",     # —
+        "\u2013": "-",     # –
+        "\u2022": "-",     # •
+    }
+    for char, repl in replacements.items():
+        text = text.replace(char, repl)
+    # Strip any remaining non-Latin-1 characters (emojis, etc.)
+    return text.encode("latin-1", errors="ignore").decode("latin-1").strip()
 
 PILLAR_LABELS = {
     "viralidad": "Viralidad",
@@ -187,7 +197,7 @@ def _render_pdf(result: WriterResult, output_path: Path) -> Path:
     pdf.set_font("Helvetica", "B", 16)
     pdf.cell(0, 10, "Resumen Ejecutivo", new_x="LMARGIN", new_y="NEXT")
     pdf.set_font("Helvetica", "", 11)
-    pdf.multi_cell(0, 6, _strip_emoji(calendar.strategy_summary))
+    pdf.multi_cell(0, 6, _sanitize_latin1(calendar.strategy_summary))
     pdf.ln(3)
 
     # Distribucion de pilares
@@ -221,7 +231,7 @@ def _render_pdf(result: WriterResult, output_path: Path) -> Path:
     for j, script in enumerate(result.scripts):
         b = script.brief
         pillar_label = PILLAR_LABELS.get(b.pillar, b.pillar.capitalize())
-        row = [str(b.day), b.date.isoformat(), pillar_label, _strip_emoji(b.topic), b.content_type]
+        row = [str(b.day), b.date.isoformat(), pillar_label, _sanitize_latin1(b.topic), b.content_type]
         if j % 2 == 0:
             pdf.set_fill_color(249, 250, 251)
         else:
@@ -254,11 +264,11 @@ def _render_script_pdf(pdf: FPDF, script: Script) -> None:
     pillar_label = PILLAR_LABELS.get(b.pillar, b.pillar.capitalize())
 
     pdf.set_font("Helvetica", "B", 13)
-    pdf.cell(0, 9, _strip_emoji(f"Dia {b.day} - {b.topic} ({pillar_label})"), new_x="LMARGIN", new_y="NEXT")
+    pdf.cell(0, 9, _sanitize_latin1(f"Dia {b.day} - {b.topic} ({pillar_label})"), new_x="LMARGIN", new_y="NEXT")
 
     pdf.set_font("Helvetica", "", 9)
     pdf.set_text_color(100, 100, 100)
-    pdf.cell(0, 6, _strip_emoji(f"Fecha: {b.date.isoformat()}  |  Tipo: {b.content_type}  |  Objetivo: {b.objective}"), new_x="LMARGIN", new_y="NEXT")
+    pdf.cell(0, 6, _sanitize_latin1(f"Fecha: {b.date.isoformat()}  |  Tipo: {b.content_type}  |  Objetivo: {b.objective}"), new_x="LMARGIN", new_y="NEXT")
     pdf.set_text_color(0, 0, 0)
     pdf.ln(2)
 
@@ -267,19 +277,19 @@ def _render_script_pdf(pdf: FPDF, script: Script) -> None:
     pdf.set_font("Helvetica", "B", 10)
     pdf.cell(15, 7, "Hook: ", fill=True)
     pdf.set_font("Helvetica", "", 10)
-    pdf.multi_cell(0, 7, _strip_emoji(script.hook), fill=True)
+    pdf.multi_cell(0, 7, _sanitize_latin1(script.hook), fill=True)
     pdf.ln(3)
 
     # Secciones
     for section in script.sections:
         pdf.set_font("Helvetica", "B", 11)
-        pdf.cell(0, 7, _strip_emoji(section.title), new_x="LMARGIN", new_y="NEXT")
+        pdf.cell(0, 7, _sanitize_latin1(section.title), new_x="LMARGIN", new_y="NEXT")
         pdf.set_font("Helvetica", "", 10)
-        pdf.multi_cell(0, 6, _strip_emoji(section.content))
+        pdf.multi_cell(0, 6, _sanitize_latin1(section.content))
         if section.notes:
             pdf.set_font("Helvetica", "I", 9)
             pdf.set_text_color(100, 100, 100)
-            pdf.cell(0, 6, _strip_emoji(f"Nota: {section.notes}"), new_x="LMARGIN", new_y="NEXT")
+            pdf.cell(0, 6, _sanitize_latin1(f"Nota: {section.notes}"), new_x="LMARGIN", new_y="NEXT")
             pdf.set_text_color(0, 0, 0)
         pdf.ln(2)
 
@@ -289,7 +299,7 @@ def _render_script_pdf(pdf: FPDF, script: Script) -> None:
         pdf.set_font("Helvetica", "B", 10)
         pdf.cell(13, 7, "CTA: ", fill=True)
         pdf.set_font("Helvetica", "", 10)
-        pdf.multi_cell(0, 7, _strip_emoji(script.cta), fill=True)
+        pdf.multi_cell(0, 7, _sanitize_latin1(script.cta), fill=True)
         pdf.ln(2)
 
     # Tips de retencion
@@ -298,14 +308,14 @@ def _render_script_pdf(pdf: FPDF, script: Script) -> None:
         pdf.cell(0, 7, "Tips de retencion:", new_x="LMARGIN", new_y="NEXT")
         pdf.set_font("Helvetica", "", 9)
         for tip in script.retention_tips:
-            pdf.cell(0, 6, _strip_emoji(f"  - {tip}"), new_x="LMARGIN", new_y="NEXT")
+            pdf.cell(0, 6, _sanitize_latin1(f"  - {tip}"), new_x="LMARGIN", new_y="NEXT")
         pdf.ln(2)
 
     # Justificacion
     if script.strategic_justification:
         pdf.set_font("Helvetica", "I", 9)
         pdf.set_text_color(100, 100, 100)
-        pdf.multi_cell(0, 5, _strip_emoji(f"Justificacion: {script.strategic_justification}"))
+        pdf.multi_cell(0, 5, _sanitize_latin1(f"Justificacion: {script.strategic_justification}"))
         pdf.set_text_color(0, 0, 0)
 
     pdf.ln(5)
