@@ -1,9 +1,14 @@
 from datetime import date
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
-class CalendarConfig(BaseModel):
+class _RevalidatingModel(BaseModel):
+    """Base model that accepts instances reconstructed by serializers."""
+    model_config = ConfigDict(revalidate_instances="always")
+
+
+class CalendarConfig(_RevalidatingModel):
     posts_per_week: int = 3
     period_weeks: int = 4
     start_date: date = Field(default_factory=date.today)
@@ -13,7 +18,7 @@ class CalendarConfig(BaseModel):
         return self.posts_per_week * self.period_weeks
 
 
-class ContentBrief(BaseModel):
+class ContentBrief(_RevalidatingModel):
     day: int
     date: date
     pillar: str
@@ -25,7 +30,7 @@ class ContentBrief(BaseModel):
     reference_data: list[str] = []
 
 
-class ContentCalendar(BaseModel):
+class ContentCalendar(_RevalidatingModel):
     platform: str
     username: str
     config: CalendarConfig
@@ -34,13 +39,13 @@ class ContentCalendar(BaseModel):
     pillar_distribution: dict[str, int]
 
 
-class ScriptSection(BaseModel):
+class ScriptSection(_RevalidatingModel):
     title: str
     content: str
     notes: str = ""
 
 
-class Script(BaseModel):
+class Script(_RevalidatingModel):
     brief: ContentBrief
     hook: str
     sections: list[ScriptSection]
@@ -49,14 +54,14 @@ class Script(BaseModel):
     strategic_justification: str = ""
 
 
-class WriterResult(BaseModel):
+class WriterResult(_RevalidatingModel):
     platform: str
     username: str
     scripts: list[Script]
     calendar: ContentCalendar
 
 
-class CompilerResult(BaseModel):
+class CompilerResult(_RevalidatingModel):
     markdown_path: str | None = None
     pdf_path: str | None = None
     platform: str

@@ -263,33 +263,33 @@ def _render_script_pdf(pdf: FPDF, script: Script) -> None:
     b = script.brief
     pillar_label = PILLAR_LABELS.get(b.pillar, b.pillar.capitalize())
 
+    # Titulo del guion (multi_cell para que no se corte)
     pdf.set_font("Helvetica", "B", 13)
-    pdf.cell(0, 9, _sanitize_latin1(f"Dia {b.day} - {b.topic} ({pillar_label})"), new_x="LMARGIN", new_y="NEXT")
+    pdf.multi_cell(0, 9, _sanitize_latin1(f"Dia {b.day} - {b.topic} ({pillar_label})"))
 
+    # Metadata (multi_cell para textos largos)
     pdf.set_font("Helvetica", "", 9)
     pdf.set_text_color(100, 100, 100)
-    pdf.cell(0, 6, _sanitize_latin1(f"Fecha: {b.date.isoformat()}  |  Tipo: {b.content_type}  |  Objetivo: {b.objective}"), new_x="LMARGIN", new_y="NEXT")
+    pdf.multi_cell(0, 6, _sanitize_latin1(f"Fecha: {b.date.isoformat()}  |  Tipo: {b.content_type}  |  Objetivo: {b.objective}"))
     pdf.set_text_color(0, 0, 0)
     pdf.ln(2)
 
     # Hook
     pdf.set_fill_color(239, 246, 255)
     pdf.set_font("Helvetica", "B", 10)
-    pdf.cell(15, 7, "Hook: ", fill=True)
-    pdf.set_font("Helvetica", "", 10)
-    pdf.multi_cell(0, 7, _sanitize_latin1(script.hook), fill=True)
+    pdf.multi_cell(0, 7, _sanitize_latin1(f"Hook: {script.hook}"), fill=True)
     pdf.ln(3)
 
     # Secciones
     for section in script.sections:
         pdf.set_font("Helvetica", "B", 11)
-        pdf.cell(0, 7, _sanitize_latin1(section.title), new_x="LMARGIN", new_y="NEXT")
+        pdf.multi_cell(0, 7, _sanitize_latin1(section.title))
         pdf.set_font("Helvetica", "", 10)
         pdf.multi_cell(0, 6, _sanitize_latin1(section.content))
         if section.notes:
             pdf.set_font("Helvetica", "I", 9)
             pdf.set_text_color(100, 100, 100)
-            pdf.cell(0, 6, _sanitize_latin1(f"Nota: {section.notes}"), new_x="LMARGIN", new_y="NEXT")
+            pdf.multi_cell(0, 6, _sanitize_latin1(f"Nota: {section.notes}"))
             pdf.set_text_color(0, 0, 0)
         pdf.ln(2)
 
@@ -297,18 +297,16 @@ def _render_script_pdf(pdf: FPDF, script: Script) -> None:
     if script.cta:
         pdf.set_fill_color(239, 246, 255)
         pdf.set_font("Helvetica", "B", 10)
-        pdf.cell(13, 7, "CTA: ", fill=True)
-        pdf.set_font("Helvetica", "", 10)
-        pdf.multi_cell(0, 7, _sanitize_latin1(script.cta), fill=True)
+        pdf.multi_cell(0, 7, _sanitize_latin1(f"CTA: {script.cta}"), fill=True)
         pdf.ln(2)
 
     # Tips de retencion
     if script.retention_tips:
         pdf.set_font("Helvetica", "B", 10)
-        pdf.cell(0, 7, "Tips de retencion:", new_x="LMARGIN", new_y="NEXT")
+        pdf.multi_cell(0, 7, "Tips de retencion:")
         pdf.set_font("Helvetica", "", 9)
         for tip in script.retention_tips:
-            pdf.cell(0, 6, _sanitize_latin1(f"  - {tip}"), new_x="LMARGIN", new_y="NEXT")
+            pdf.multi_cell(0, 6, _sanitize_latin1(f"  - {tip}"))
         pdf.ln(2)
 
     # Justificacion

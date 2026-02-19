@@ -21,6 +21,12 @@ NICHE_QUERIES = [
 SYSTEM_INSTRUCTION = """Eres un estratega de contenido digital experto. Tu trabajo es diseñar calendarios editoriales
 de alto rendimiento basados en datos reales de un nicho específico.
 
+CONTEXTO CRÍTICO:
+- Los datos que recibes provienen de canales/cuentas de REFERENCIA analizados para entender el nicho.
+- El calendario es para un NUEVO creador que quiere posicionarse en ese nicho.
+- NUNCA uses nombres, identidades o personas de los creadores de referencia en los briefs.
+- Usa los datos como inteligencia de mercado: qué temas funcionan, qué formatos tienen mejor rendimiento, qué ángulos generan engagement.
+
 Reglas clave:
 - Cada pieza de contenido debe estar asignada a uno de los tres pilares: viralidad, autoridad o venta
 - VIRALIDAD (~40%): Hooks potentes, temas trending, formato corto, máxima retención
@@ -51,6 +57,7 @@ def _build_strategy_prompt(
     niche_context: str,
     config: CalendarConfig,
     platform: str,
+    user_context: str | None = None,
 ) -> str:
     total = config.total_posts
     virality = round(total * 0.4)
@@ -71,10 +78,20 @@ def _build_strategy_prompt(
 
     dates_str = ", ".join(d.isoformat() for d in dates)
 
+    user_context_section = ""
+    if user_context:
+        user_context_section = f"""
+## CONTEXTO DEL USUARIO (imagen de marca, ejemplos de guiones, indicaciones):
+{user_context}
+
+Usa esta información para alinear la estrategia con la identidad de marca y estilo del usuario.
+"""
+
     return f"""Analiza el siguiente contexto de un nicho en {platform} y genera un calendario editorial.
 
 ## CONTEXTO DEL NICHO (datos reales extraídos):
 {niche_context}
+{user_context_section}
 
 ## CONFIGURACIÓN:
 - Plataforma: {platform}
@@ -135,6 +152,7 @@ def _parse_calendar_response(
 def run_strategist(
     index_result: IndexResult,
     config: CalendarConfig | None = None,
+    user_context: str | None = None,
 ) -> ContentCalendar:
     if config is None:
         config = CalendarConfig()
@@ -151,7 +169,7 @@ def run_strategist(
     logger.info("Retrieved niche context (%d chars)", len(niche_context))
 
     # 2. Build prompt
-    prompt = _build_strategy_prompt(niche_context, config, index_result.platform)
+    prompt = _build_strategy_prompt(niche_context, config, index_result.platform, user_context)
 
     # 3. Call Gemini
     response = generate(prompt, system_instruction=SYSTEM_INSTRUCTION)
@@ -160,10 +178,13 @@ def run_strategist(
     # 4. Parse response
     briefs, strategy_summary, distribution = _parse_calendar_response(response, config)
 
+    # Convert config to fresh instance to avoid checkpointer deserialization issues
+    clean_config = CalendarConfig(**config.model_dump())
+
     return ContentCalendar(
         platform=index_result.platform,
         username=index_result.username,
-        config=config,
+        config=clean_config,
         briefs=briefs,
         strategy_summary=strategy_summary,
         pillar_distribution=distribution,

@@ -1,9 +1,14 @@
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
-class ContentItem(BaseModel):
+class _RevalidatingModel(BaseModel):
+    """Base model that accepts instances reconstructed by serializers."""
+    model_config = ConfigDict(revalidate_instances="always")
+
+
+class ContentItem(_RevalidatingModel):
     platform: str
     title: str | None = None
     description: str
@@ -19,7 +24,7 @@ class ContentItem(BaseModel):
     duration: int | None = None
 
 
-class ExtractionResult(BaseModel):
+class ExtractionResult(_RevalidatingModel):
     source_url: str
     platform: str
     username: str
@@ -27,7 +32,7 @@ class ExtractionResult(BaseModel):
     extracted_at: datetime
 
 
-class IndexResult(BaseModel):
+class IndexResult(_RevalidatingModel):
     collection_name: str
     chunks_indexed: int
     platform: str

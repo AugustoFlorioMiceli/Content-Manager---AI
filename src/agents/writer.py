@@ -17,6 +17,13 @@ logger = logging.getLogger(__name__)
 SYSTEM_INSTRUCTION = """Eres un redactor de guiones de contenido digital de élite. Tu trabajo es escribir guiones
 completos, listos para grabar, basados en briefs estratégicos y datos reales de un nicho.
 
+CONTEXTO CRÍTICO:
+- Los "datos del nicho" que recibes provienen de canales/cuentas de REFERENCIA que fueron analizados.
+- NUNCA adoptes la identidad, nombre, o persona de los creadores de esos canales de referencia.
+- Los guiones son para un NUEVO creador de contenido que quiere posicionarse en ese nicho.
+- Usa los datos de referencia como inspiración, tendencias y conocimiento del nicho, NO como identidad.
+- El guión debe estar escrito en primera persona genérica, sin asumir un nombre o título profesional específico.
+
 Reglas clave:
 - El hook de apertura debe capturar atención en los primeros 3-5 segundos. Debe ser específico y provocativo.
 - Incluye pattern interrupts cada 30-60 segundos para mantener retención.
@@ -51,10 +58,14 @@ def _build_script_prompt(
     template_section = ""
     if template:
         template_section = f"""
-## PLANTILLA DEL USUARIO (respeta esta estructura):
+## EJEMPLOS Y CONTEXTO DEL USUARIO:
 {template}
 
-Inyecta el contenido nuevo dentro de esta estructura, manteniendo el estilo y formato.
+INSTRUCCIONES SOBRE LOS EJEMPLOS:
+- Si hay ejemplos de guiones, REPLICA su estructura, formato, tono y estilo en los nuevos guiones.
+- Usa las mismas secciones, transiciones y nivel de detalle que muestran los ejemplos.
+- Si hay informacion de marca (tono de voz, valores, publico objetivo), alinea el contenido a esa identidad.
+- Adapta el contenido al tema del brief, pero mantene el formato y estilo de los ejemplos.
 """
 
     return f"""Escribe un guión completo para la siguiente pieza de contenido.
@@ -69,7 +80,7 @@ Inyecta el contenido nuevo dentro de esta estructura, manteniendo el estilo y fo
 - Tipo de contenido: {brief.content_type}
 - Datos de referencia: {', '.join(brief.reference_data) if brief.reference_data else 'N/A'}
 
-## DATOS DEL NICHO (información real extraída):
+## DATOS DEL NICHO (extraídos de canales de referencia - usar como inspiración, NO adoptar la identidad de estos creadores):
 {niche_data}
 {template_section}
 ## FORMATO DE RESPUESTA (JSON):
@@ -90,14 +101,60 @@ Inyecta el contenido nuevo dentro de esta estructura, manteniendo el estilo y fo
 Genera un guión completo con al menos 3 secciones. El contenido debe ser específico, no genérico."""
 
 
-def _parse_script_response(response: str, brief: ContentBrief) -> Script:
-    cleaned = response.strip()
-    if cleaned.startswith("```"):
-        cleaned = cleaned.split("\n", 1)[1]
-        if cleaned.endswith("```"):
-            cleaned = cleaned[:-3]
-        cleaned = cleaned.strip()
+def _extract_json(text: str) -> str:
+    """Extract JSON from response, handling markdown fences and extra text."""
+    cleaned = text.strip()
 
+    # Remove markdown code fences
+    if "```" in cleaned:
+        # Find content between first ``` and last ```
+        parts = cleaned.split("```")
+        for part in parts[1:]:
+            # Skip the language tag (e.g., "json\n")
+            candidate = part.strip()
+            if candidate.startswith("json"):
+                candidate = candidate[4:].strip()
+            # Check if it looks like JSON
+            if candidate.startswith("{"):
+                cleaned = candidate
+                break
+
+    # If still wrapped in ```, try line-by-line
+    if cleaned.startswith("```"):
+        lines = cleaned.split("\n")
+        json_lines = []
+        inside = False
+        for line in lines:
+            if line.strip().startswith("```") and not inside:
+                inside = True
+                continue
+            elif line.strip().startswith("```") and inside:
+                break
+            elif inside:
+                json_lines.append(line)
+        if json_lines:
+            cleaned = "\n".join(json_lines).strip()
+
+    # Find JSON object if there's extra text around it
+    if not cleaned.startswith("{"):
+        start = cleaned.find("{")
+        if start != -1:
+            # Find matching closing brace
+            depth = 0
+            for i, c in enumerate(cleaned[start:], start):
+                if c == "{":
+                    depth += 1
+                elif c == "}":
+                    depth -= 1
+                    if depth == 0:
+                        cleaned = cleaned[start:i + 1]
+                        break
+
+    return cleaned
+
+
+def _parse_script_response(response: str, brief: ContentBrief) -> Script:
+    cleaned = _extract_json(response)
     data = json.loads(cleaned)
 
     sections = []
@@ -145,25 +202,39 @@ def run_writer(
         # 2. Build prompt
         prompt = _build_script_prompt(brief, niche_data, template)
 
-        # 3. Generate script with Gemini
-        response = generate(prompt, system_instruction=SYSTEM_INSTRUCTION)
+        # 3. Generate script with Gemini (retry once on parse failure)
+        script = None
+        for attempt in range(2):
+            response = generate(prompt, system_instruction=SYSTEM_INSTRUCTION)
+            try:
+                script = _parse_script_response(response, brief)
+                break
+            except (json.JSONDecodeError, KeyError, ValueError) as e:
+                if attempt == 0:
+                    logger.warning(
+                        "Failed to parse script for brief %d (attempt 1), retrying: %s",
+                        brief.day, e,
+                    )
+                else:
+                    logger.error(
+                        "Failed to parse script for brief %d after retry: %s",
+                        brief.day, e,
+                    )
 
-        # 4. Parse response
-        try:
-            script = _parse_script_response(response, brief)
-            scripts.append(script)
-        except (json.JSONDecodeError, KeyError) as e:
-            logger.error("Failed to parse script for brief %d: %s", brief.day, e)
-            # Create a minimal script with the raw response
-            scripts.append(Script(
+        if script is None:
+            # Last resort: never show raw JSON, create a placeholder
+            script = Script(
                 brief=brief,
                 hook=brief.hook,
                 sections=[ScriptSection(
-                    title="Guión completo",
-                    content=response,
+                    title="Error de generacion",
+                    content="No se pudo generar el guion para esta pieza. "
+                    "Intenta regenerar el plan.",
                 )],
                 cta="",
-            ))
+            )
+
+        scripts.append(script)
 
     return WriterResult(
         platform=calendar.platform,

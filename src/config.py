@@ -18,3 +18,5 @@ GEMINI_MODEL = "gemini-2.5-flash"
 EMBEDDING_MODEL = "all-MiniLM-L6-v2"
 EMBEDDING_DIMENSIONS = 384
 CHUNK_SIZE = 500
+
+CHECKPOINT_DB_PATH = str(Path(__file__).resolve().parent.parent / "data" / "checkpoints.db")
