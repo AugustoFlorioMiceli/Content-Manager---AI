@@ -1,10 +1,10 @@
 import logging
 import re
 
-from src.config import CHUNK_SIZE
-from src.models.content import ContentItem, ExtractionResult, IndexResult
-from src.services.embeddings import generate_embeddings
-from src.services.qdrant import ensure_collection, upsert_chunks
+from config import CHUNK_SIZE
+from models.content import ContentItem, ExtractionResult, IndexResult
+from services.embeddings import generate_embeddings
+from services.qdrant import ensure_collection, upsert_chunks
 
 logger = logging.getLogger(__name__)
 

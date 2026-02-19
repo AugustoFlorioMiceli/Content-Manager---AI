@@ -2,11 +2,11 @@ import json
 import logging
 from datetime import timedelta
 
-from src.models.content import IndexResult
-from src.models.strategy import CalendarConfig, ContentBrief, ContentCalendar
-from src.services.embeddings import generate_embeddings
-from src.services.llm import generate
-from src.services.qdrant import search
+from models.content import IndexResult
+from models.strategy import CalendarConfig, ContentBrief, ContentCalendar
+from services.embeddings import generate_embeddings
+from services.llm import generate
+from services.qdrant import search
 
 logger = logging.getLogger(__name__)
 

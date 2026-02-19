@@ -3,12 +3,12 @@ from pathlib import Path
 
 import streamlit as st
 
-from src.agents.compiler import run_compiler
-from src.agents.extractor import run_extractor
-from src.agents.indexer import run_indexer
-from src.agents.strategist import run_strategist
-from src.agents.writer import run_writer
-from src.models.strategy import CalendarConfig
+from agents.compiler import run_compiler
+from agents.extractor import run_extractor
+from agents.indexer import run_indexer
+from agents.strategist import run_strategist
+from agents.writer import run_writer
+from models.strategy import CalendarConfig
 
 st.set_page_config(
     page_title="ContentBrain",

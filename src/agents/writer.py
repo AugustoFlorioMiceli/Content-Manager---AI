@@ -1,16 +1,16 @@
 import json
 import logging
 
-from src.models.strategy import (
+from models.strategy import (
     ContentBrief,
     ContentCalendar,
     Script,
     ScriptSection,
     WriterResult,
 )
-from src.services.embeddings import generate_embeddings
-from src.services.llm import generate
-from src.services.qdrant import search
+from services.embeddings import generate_embeddings
+from services.llm import generate
+from services.qdrant import search
 
 logger = logging.getLogger(__name__)
 
@@ -100,7 +100,13 @@ def _parse_script_response(response: str, brief: ContentBrief) -> Script:
 
     data = json.loads(cleaned)
 
-    sections = [ScriptSection(**s) for s in data.get("sections", [])]
+    sections = []
+    for s in data.get("sections", []):
+        if isinstance(s.get("notes"), list):
+            s["notes"] = " ".join(str(n) for n in s["notes"])
+        if isinstance(s.get("content"), list):
+            s["content"] = "\n".join(str(c) for c in s["content"])
+        sections.append(ScriptSection(**s))
 
     return Script(
         brief=brief,

@@ -3,10 +3,10 @@ import re
 from datetime import datetime, timezone
 from urllib.parse import urlparse
 
-from src.config import DEFAULT_EXTRACTION_LIMIT
-from src.models.content import ContentItem, ExtractionResult
-from src.services.apify import scrape_instagram, scrape_tiktok
-from src.services.youtube import get_channel_videos, get_video_metadata
+from config import DEFAULT_EXTRACTION_LIMIT
+from models.content import ContentItem, ExtractionResult
+from services.apify import scrape_instagram, scrape_tiktok
+from services.youtube import get_channel_videos, get_video_metadata
 
 logger = logging.getLogger(__name__)
 

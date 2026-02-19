@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 
 from apify_client import ApifyClient
 
-from src.config import APIFY_API_TOKEN
+from config import APIFY_API_TOKEN
 
 logger = logging.getLogger(__name__)
 

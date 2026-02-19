@@ -1,7 +1,7 @@
 from typing import TypedDict
 
-from src.models.content import ExtractionResult, IndexResult
-from src.models.strategy import (
+from models.content import ExtractionResult, IndexResult
+from models.strategy import (
     CalendarConfig,
     CompilerResult,
     ContentCalendar,

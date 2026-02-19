@@ -2,7 +2,7 @@ import logging
 
 from qdrant_client import QdrantClient, models
 
-from src.config import EMBEDDING_DIMENSIONS, QDRANT_API_KEY, QDRANT_URL
+from config import EMBEDDING_DIMENSIONS, QDRANT_API_KEY, QDRANT_URL
 
 logger = logging.getLogger(__name__)
 

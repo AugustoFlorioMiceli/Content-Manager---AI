@@ -2,7 +2,7 @@ import logging
 
 from google import genai
 
-from src.config import GEMINI_MODEL, GOOGLE_API_KEY
+from config import GEMINI_MODEL, GOOGLE_API_KEY
 
 logger = logging.getLogger(__name__)
 
