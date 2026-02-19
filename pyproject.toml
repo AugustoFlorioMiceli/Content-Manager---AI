@@ -12,6 +12,7 @@ dependencies = [
     "openai>=2.21.0",
     "python-dotenv>=1.2.1",
     "qdrant-client>=1.16.2",
+    "sentence-transformers>=5.2.3",
     "streamlit>=1.54.0",
     "weasyprint>=68.1",
     "yt-dlp>=2026.2.4",
