@@ -35,24 +35,40 @@ def strategize(state: PipelineState) -> dict:
     logger.info("Step 3/5: Generating content strategy")
     config = state.get("calendar_config")
     user_context = state.get("template")
-    calendar = run_strategist(state["index_result"], config, user_context)
-    return {"calendar": calendar, "current_step": "strategize"}
+    platforms = state.get("platforms") or [state["index_result"].platform]
+
+    calendars = []
+    for platform in platforms:
+        calendar = run_strategist(state["index_result"], config, user_context, platform)
+        calendars.append(calendar)
+
+    return {"calendars": calendars, "current_step": "strategize"}
 
 
 def write(state: PipelineState) -> dict:
     logger.info("Step 4/5: Writing scripts")
     collection_name = state["index_result"].collection_name
     template = state.get("template")
-    writer_result = run_writer(state["calendar"], collection_name, template)
-    return {"writer_result": writer_result, "current_step": "write"}
+
+    writer_results = []
+    for calendar in state["calendars"]:
+        writer_result = run_writer(calendar, collection_name, template)
+        writer_results.append(writer_result)
+
+    return {"writer_results": writer_results, "current_step": "write"}
 
 
 def compile_node(state: PipelineState) -> dict:
     logger.info("Step 5/5: Compiling final document")
     output_dir = state.get("output_dir", "output")
     formats = state.get("output_formats", ["markdown", "pdf"])
-    compiler_result = run_compiler(state["writer_result"], output_dir, formats)
-    return {"compiler_result": compiler_result, "current_step": "compile"}
+
+    compiler_results = []
+    for writer_result in state["writer_results"]:
+        compiler_result = run_compiler(writer_result, output_dir, formats)
+        compiler_results.append(compiler_result)
+
+    return {"compiler_results": compiler_results, "current_step": "compile"}
 
 
 def build_workflow() -> StateGraph:

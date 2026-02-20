@@ -153,13 +153,17 @@ def run_strategist(
     index_result: IndexResult,
     config: CalendarConfig | None = None,
     user_context: str | None = None,
+    platform: str | None = None,
 ) -> ContentCalendar:
     if config is None:
         config = CalendarConfig()
 
+    target_platform = platform or index_result.platform
+
     logger.info(
-        "Generating strategy for @%s: %d posts/week, %d weeks",
+        "Generating strategy for @%s on %s: %d posts/week, %d weeks",
         index_result.username,
+        target_platform,
         config.posts_per_week,
         config.period_weeks,
     )
@@ -169,7 +173,7 @@ def run_strategist(
     logger.info("Retrieved niche context (%d chars)", len(niche_context))
 
     # 2. Build prompt
-    prompt = _build_strategy_prompt(niche_context, config, index_result.platform, user_context)
+    prompt = _build_strategy_prompt(niche_context, config, target_platform, user_context)
 
     # 3. Call Gemini
     response = generate(prompt, system_instruction=SYSTEM_INSTRUCTION)
@@ -182,7 +186,7 @@ def run_strategist(
     clean_config = CalendarConfig(**config.model_dump())
 
     return ContentCalendar(
-        platform=index_result.platform,
+        platform=target_platform,
         username=index_result.username,
         config=clean_config,
         briefs=briefs,

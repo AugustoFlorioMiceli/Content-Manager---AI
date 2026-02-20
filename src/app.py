@@ -28,6 +28,22 @@ url = st.text_input(
     placeholder="https://www.youtube.com/@canal / instagram.com/cuenta / tiktok.com/@usuario",
 )
 
+# --- Plataforma de destino ---
+platform_choice = st.radio(
+    "Plataforma de destino",
+    options=["YouTube", "Instagram", "Ambas"],
+    horizontal=True,
+    help="Plataforma para la que se generará el calendario editorial. "
+    "Si elegís 'Ambas', se generan dos archivos separados.",
+)
+
+if platform_choice == "YouTube":
+    platforms = ["youtube"]
+elif platform_choice == "Instagram":
+    platforms = ["instagram"]
+else:
+    platforms = ["youtube", "instagram"]
+
 # --- Configuracion ---
 with st.expander("Configuracion del calendario", expanded=True):
     col1, col2 = st.columns(2)
@@ -136,6 +152,8 @@ if st.button("Generar Plan de Contenido", type="primary", use_container_width=Tr
     elif not output_formats:
         st.error("Selecciona al menos un formato de salida.")
     else:
+        # Clear previous results before a new generation
+        st.session_state.pop("compiler_results", None)
         config = CalendarConfig(
             posts_per_week=posts_per_week,
             period_weeks=period_weeks,
@@ -156,6 +174,7 @@ if st.button("Generar Plan de Contenido", type="primary", use_container_width=Tr
             thread_id = generate_thread_id(url)
             input_data = {
                 "url": url,
+                "platforms": platforms,
                 "calendar_config": config,
                 "template": template_text,
                 "output_dir": "output",
@@ -180,18 +199,31 @@ if st.button("Generar Plan de Contenido", type="primary", use_container_width=Tr
                         elif node_name == "index" and node_output.get("index_result"):
                             idx = node_output["index_result"]
                             st.write(f"Indexados {idx.chunks_indexed} chunks")
-                        elif node_name == "strategize" and node_output.get("calendar"):
-                            cal = node_output["calendar"]
-                            st.write(f"Calendario generado: {len(cal.briefs)} piezas")
-                        elif node_name == "write" and node_output.get("writer_result"):
-                            wr = node_output["writer_result"]
-                            st.write(f"Redactados {len(wr.scripts)} guiones")
+                        elif node_name == "strategize" and node_output.get("calendars"):
+                            cals = node_output["calendars"]
+                            total_briefs = sum(len(c.briefs) for c in cals)
+                            platforms_str = " + ".join(c.platform.capitalize() for c in cals)
+                            st.write(f"Calendario(s) generado(s): {total_briefs} piezas ({platforms_str})")
+                        elif node_name == "write" and node_output.get("writer_results"):
+                            wrs = node_output["writer_results"]
+                            total_scripts = sum(len(wr.scripts) for wr in wrs)
+                            st.write(f"Redactados {total_scripts} guiones")
                         elif node_name == "compile":
                             st.write("Documento final compilado")
 
                 # Get final state
                 final_state = app.get_state(run_config)
-                compiler_result = final_state.values.get("compiler_result")
+                compiler_results = final_state.values.get("compiler_results", [])
+
+                # Persist results in session state so download buttons survive re-runs
+                st.session_state["compiler_results"] = [
+                    {
+                        "platform": cr.platform,
+                        "markdown_path": cr.markdown_path,
+                        "pdf_path": cr.pdf_path,
+                    }
+                    for cr in compiler_results
+                ]
 
                 # Clear resume state on success
                 st.session_state.pop("last_thread_id", None)
@@ -208,39 +240,52 @@ if st.button("Generar Plan de Contenido", type="primary", use_container_width=Tr
                 )
                 st.stop()
 
-        # --- Resultados ---
-        st.divider()
-        st.subheader("Documentos listos")
+# --- Resultados (fuera del bloque de generacion para sobrevivir re-runs) ---
+saved_results = st.session_state.get("compiler_results", [])
+if saved_results:
+    st.divider()
+    st.subheader("Documentos listos")
+
+    for cr in saved_results:
+        platform_label = cr["platform"].capitalize()
+        if len(saved_results) > 1:
+            st.markdown(f"**{platform_label}**")
 
         col_dl1, col_dl2 = st.columns(2)
 
-        if compiler_result and compiler_result.markdown_path:
-            md_path = Path(compiler_result.markdown_path)
+        if cr["markdown_path"]:
+            md_path = Path(cr["markdown_path"])
             if md_path.exists():
                 with col_dl1:
                     st.download_button(
-                        label="Descargar Markdown",
+                        label=f"Descargar Markdown{' - ' + platform_label if len(saved_results) > 1 else ''}",
                         data=md_path.read_text(encoding="utf-8"),
                         file_name=md_path.name,
                         mime="text/markdown",
                         use_container_width=True,
+                        key=f"md_{cr['platform']}",
                     )
 
-        if compiler_result and compiler_result.pdf_path:
-            pdf_path = Path(compiler_result.pdf_path)
+        if cr["pdf_path"]:
+            pdf_path = Path(cr["pdf_path"])
             if pdf_path.exists():
                 with col_dl2:
                     st.download_button(
-                        label="Descargar PDF",
+                        label=f"Descargar PDF{' - ' + platform_label if len(saved_results) > 1 else ''}",
                         data=pdf_path.read_bytes(),
                         file_name=pdf_path.name,
                         mime="application/pdf",
                         use_container_width=True,
+                        key=f"pdf_{cr['platform']}",
                     )
 
-        # Preview del markdown
-        if compiler_result and compiler_result.markdown_path:
-            md_path = Path(compiler_result.markdown_path)
-            if md_path.exists():
-                with st.expander("Vista previa del plan", expanded=True):
-                    st.markdown(md_path.read_text(encoding="utf-8"))
+    # Preview del markdown (primera plataforma)
+    first = saved_results[0]
+    if first["markdown_path"]:
+        md_path = Path(first["markdown_path"])
+        if md_path.exists():
+            label = "Vista previa del plan"
+            if len(saved_results) > 1:
+                label += f" ({first['platform'].capitalize()})"
+            with st.expander(label, expanded=True):
+                st.markdown(md_path.read_text(encoding="utf-8"))

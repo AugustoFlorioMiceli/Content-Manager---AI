@@ -12,6 +12,7 @@ from models.strategy import (
 class PipelineState(TypedDict, total=False):
     # User inputs
     url: str
+    platforms: list[str]
     calendar_config: CalendarConfig | None
     template: str | None
     output_dir: str
@@ -19,9 +20,9 @@ class PipelineState(TypedDict, total=False):
     # Intermediate state
     extraction: ExtractionResult | None
     index_result: IndexResult | None
-    calendar: ContentCalendar | None
-    writer_result: WriterResult | None
-    compiler_result: CompilerResult | None
+    calendars: list[ContentCalendar]
+    writer_results: list[WriterResult]
+    compiler_results: list[CompilerResult]
     # Control
     current_step: str
     error: str | None
