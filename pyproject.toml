@@ -8,6 +8,7 @@ dependencies = [
     "apify-client>=2.5.0",
     "fpdf2>=2.8.5",
     "google-genai>=1.63.0",
+    "jsonpatch>=1.33",
     "langgraph>=1.0.8",
     "langgraph-checkpoint>=4.0.0",
     "langgraph-checkpoint-sqlite>=3.0.0",

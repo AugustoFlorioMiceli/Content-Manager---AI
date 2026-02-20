@@ -194,10 +194,12 @@ def _render_pdf(result: WriterResult, output_path: Path) -> Path:
     pdf.ln(5)
 
     # --- Resumen ---
+    epw = pdf.w - pdf.l_margin - pdf.r_margin
     pdf.set_font("Helvetica", "B", 16)
     pdf.cell(0, 10, "Resumen Ejecutivo", new_x="LMARGIN", new_y="NEXT")
     pdf.set_font("Helvetica", "", 11)
-    pdf.multi_cell(0, 6, _sanitize_latin1(calendar.strategy_summary))
+    pdf.set_x(pdf.l_margin)
+    pdf.multi_cell(epw, 6, _sanitize_latin1(calendar.strategy_summary))
     pdf.ln(3)
 
     # Distribucion de pilares
@@ -262,34 +264,41 @@ def _render_pdf(result: WriterResult, output_path: Path) -> Path:
 def _render_script_pdf(pdf: FPDF, script: Script) -> None:
     b = script.brief
     pillar_label = PILLAR_LABELS.get(b.pillar, b.pillar.capitalize())
+    epw = pdf.w - pdf.l_margin - pdf.r_margin
 
     # Titulo del guion (multi_cell para que no se corte)
     pdf.set_font("Helvetica", "B", 13)
-    pdf.multi_cell(0, 9, _sanitize_latin1(f"Dia {b.day} - {b.topic} ({pillar_label})"))
+    pdf.set_x(pdf.l_margin)
+    pdf.multi_cell(epw, 9, _sanitize_latin1(f"Dia {b.day} - {b.topic} ({pillar_label})"))
 
     # Metadata (multi_cell para textos largos)
     pdf.set_font("Helvetica", "", 9)
     pdf.set_text_color(100, 100, 100)
-    pdf.multi_cell(0, 6, _sanitize_latin1(f"Fecha: {b.date.isoformat()}  |  Tipo: {b.content_type}  |  Objetivo: {b.objective}"))
+    pdf.set_x(pdf.l_margin)
+    pdf.multi_cell(epw, 6, _sanitize_latin1(f"Fecha: {b.date.isoformat()}  |  Tipo: {b.content_type}  |  Objetivo: {b.objective}"))
     pdf.set_text_color(0, 0, 0)
     pdf.ln(2)
 
     # Hook
     pdf.set_fill_color(239, 246, 255)
     pdf.set_font("Helvetica", "B", 10)
-    pdf.multi_cell(0, 7, _sanitize_latin1(f"Hook: {script.hook}"), fill=True)
+    pdf.set_x(pdf.l_margin)
+    pdf.multi_cell(epw, 7, _sanitize_latin1(f"Hook: {script.hook}"), fill=True)
     pdf.ln(3)
 
     # Secciones
     for section in script.sections:
         pdf.set_font("Helvetica", "B", 11)
-        pdf.multi_cell(0, 7, _sanitize_latin1(section.title))
+        pdf.set_x(pdf.l_margin)
+        pdf.multi_cell(epw, 7, _sanitize_latin1(section.title))
         pdf.set_font("Helvetica", "", 10)
-        pdf.multi_cell(0, 6, _sanitize_latin1(section.content))
+        pdf.set_x(pdf.l_margin)
+        pdf.multi_cell(epw, 6, _sanitize_latin1(section.content))
         if section.notes:
             pdf.set_font("Helvetica", "I", 9)
             pdf.set_text_color(100, 100, 100)
-            pdf.multi_cell(0, 6, _sanitize_latin1(f"Nota: {section.notes}"))
+            pdf.set_x(pdf.l_margin)
+            pdf.multi_cell(epw, 6, _sanitize_latin1(f"Nota: {section.notes}"))
             pdf.set_text_color(0, 0, 0)
         pdf.ln(2)
 
@@ -297,23 +306,27 @@ def _render_script_pdf(pdf: FPDF, script: Script) -> None:
     if script.cta:
         pdf.set_fill_color(239, 246, 255)
         pdf.set_font("Helvetica", "B", 10)
-        pdf.multi_cell(0, 7, _sanitize_latin1(f"CTA: {script.cta}"), fill=True)
+        pdf.set_x(pdf.l_margin)
+        pdf.multi_cell(epw, 7, _sanitize_latin1(f"CTA: {script.cta}"), fill=True)
         pdf.ln(2)
 
     # Tips de retencion
     if script.retention_tips:
         pdf.set_font("Helvetica", "B", 10)
-        pdf.multi_cell(0, 7, "Tips de retencion:")
+        pdf.set_x(pdf.l_margin)
+        pdf.multi_cell(epw, 7, "Tips de retencion:")
         pdf.set_font("Helvetica", "", 9)
         for tip in script.retention_tips:
-            pdf.multi_cell(0, 6, _sanitize_latin1(f"  - {tip}"))
+            pdf.set_x(pdf.l_margin)
+            pdf.multi_cell(epw, 6, _sanitize_latin1(f"  - {tip}"))
         pdf.ln(2)
 
     # Justificacion
     if script.strategic_justification:
         pdf.set_font("Helvetica", "I", 9)
         pdf.set_text_color(100, 100, 100)
-        pdf.multi_cell(0, 5, _sanitize_latin1(f"Justificacion: {script.strategic_justification}"))
+        pdf.set_x(pdf.l_margin)
+        pdf.multi_cell(epw, 5, _sanitize_latin1(f"Justificacion: {script.strategic_justification}"))
         pdf.set_text_color(0, 0, 0)
 
     pdf.ln(5)
