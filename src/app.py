@@ -23,24 +23,61 @@ st.caption(
 st.divider()
 
 # --- Input principal ---
-url = st.text_input(
-    "URL del perfil de referencia",
-    placeholder="https://www.youtube.com/@canal / instagram.com/cuenta / tiktok.com/@usuario",
+url_input = st.text_area(
+    "URLs de perfiles de referencia",
+    placeholder="Pega una o varias URLs (una por linea):\nhttps://www.youtube.com/@canal\nhttps://www.instagram.com/cuenta",
+    height=100,
+    help="Podes pegar varias URLs de YouTube, Instagram o TikTok. "
+    "El sistema extraera contenido de todas para analizar el nicho.",
 )
 
+# Parse URLs from input
+urls = [u.strip() for u in url_input.replace(",", "\n").split() if u.strip().startswith("http")]
+if urls:
+    st.caption(f"{len(urls)} URL(s) detectadas")
+
 # --- Plataforma de destino ---
+# Auto-detect platforms from URLs
+def _detect_platforms_from_urls(url_list: list[str]) -> list[str]:
+    detected = set()
+    for u in url_list:
+        u_lower = u.lower()
+        if "youtube.com" in u_lower or "youtu.be" in u_lower:
+            detected.add("youtube")
+        elif "instagram.com" in u_lower:
+            detected.add("instagram")
+        elif "tiktok.com" in u_lower:
+            detected.add("tiktok")
+    return sorted(detected) if detected else ["youtube"]
+
+detected_platforms = _detect_platforms_from_urls(urls)
+
+# Set default based on detected platforms
+platform_options = ["YouTube", "Instagram", "TikTok", "Ambas (YT + IG)"]
+if detected_platforms == ["instagram"]:
+    default_idx = 1
+elif detected_platforms == ["tiktok"]:
+    default_idx = 2
+elif len(detected_platforms) > 1:
+    default_idx = 3
+else:
+    default_idx = 0
+
 platform_choice = st.radio(
     "Plataforma de destino",
-    options=["YouTube", "Instagram", "Ambas"],
+    options=platform_options,
+    index=default_idx,
     horizontal=True,
-    help="Plataforma para la que se generará el calendario editorial. "
-    "Si elegís 'Ambas', se generan dos archivos separados.",
+    help="Plataforma para la que se generara el calendario editorial. "
+    "Se auto-detecta de las URLs, pero podes cambiarlo.",
 )
 
 if platform_choice == "YouTube":
     platforms = ["youtube"]
 elif platform_choice == "Instagram":
     platforms = ["instagram"]
+elif platform_choice == "TikTok":
+    platforms = ["tiktok"]
 else:
     platforms = ["youtube", "instagram"]
 
@@ -116,16 +153,17 @@ def get_app():
     return compile_app()
 
 
-def generate_thread_id(url: str) -> str:
-    url_hash = hashlib.md5(url.encode()).hexdigest()[:8]
+def generate_thread_id(urls: list[str]) -> str:
+    combined = " ".join(sorted(urls))
+    url_hash = hashlib.md5(combined.encode()).hexdigest()[:8]
     return f"{url_hash}_{int(time.time())}"
 
 
-def check_resumable(app, url: str):
+def check_resumable(app, urls: list[str]):
     prev_thread = st.session_state.get("last_thread_id")
-    prev_url = st.session_state.get("last_url")
+    prev_urls = st.session_state.get("last_urls")
 
-    if prev_thread and prev_url == url:
+    if prev_thread and prev_urls == urls:
         config = {"configurable": {"thread_id": prev_thread}}
         try:
             state = app.get_state(config)
@@ -141,14 +179,16 @@ NODE_PROGRESS = {
     "index": "Indexando contenido en base de datos vectorial...",
     "strategize": "Generando estrategia de contenido...",
     "write": "Escribiendo guiones...",
+    "critic": "Evaluando calidad de guiones...",
+    "rewrite": "Reescribiendo guiones con feedback...",
     "compile": "Compilando documento final...",
 }
 
 
 # --- Generar ---
 if st.button("Generar Plan de Contenido", type="primary", use_container_width=True):
-    if not url:
-        st.error("Por favor, pega la URL de un perfil de YouTube, Instagram o TikTok.")
+    if not urls:
+        st.error("Por favor, pega al menos una URL de un perfil de YouTube, Instagram o TikTok.")
     elif not output_formats:
         st.error("Selecciona al menos un formato de salida.")
     else:
@@ -163,7 +203,7 @@ if st.button("Generar Plan de Contenido", type="primary", use_container_width=Tr
         app = get_app()
 
         # Check for resumable state
-        resume_thread, resume_state = check_resumable(app, url)
+        resume_thread, resume_state = check_resumable(app, urls)
 
         if resume_thread:
             thread_id = resume_thread
@@ -171,9 +211,9 @@ if st.button("Generar Plan de Contenido", type="primary", use_container_width=Tr
             completed_step = resume_state.get("current_step", "")
             st.info(f"Reanudando desde el ultimo paso exitoso ({completed_step})")
         else:
-            thread_id = generate_thread_id(url)
+            thread_id = generate_thread_id(urls)
             input_data = {
-                "url": url,
+                "urls": urls,
                 "platforms": platforms,
                 "calendar_config": config,
                 "template": template_text,
@@ -185,7 +225,7 @@ if st.button("Generar Plan de Contenido", type="primary", use_container_width=Tr
 
         # Save for resume on next run
         st.session_state["last_thread_id"] = thread_id
-        st.session_state["last_url"] = url
+        st.session_state["last_urls"] = urls
 
         with st.status("Generando plan de contenido...", expanded=True) as status:
             try:
@@ -208,6 +248,16 @@ if st.button("Generar Plan de Contenido", type="primary", use_container_width=Tr
                             wrs = node_output["writer_results"]
                             total_scripts = sum(len(wr.scripts) for wr in wrs)
                             st.write(f"Redactados {total_scripts} guiones")
+                        elif node_name == "critic":
+                            approved = node_output.get("critic_approved", False)
+                            feedback = node_output.get("critic_feedback", {})
+                            rounds = node_output.get("critic_rounds", 0)
+                            if approved:
+                                st.write(f"Critico aprobo todos los guiones (ronda {rounds})")
+                            else:
+                                st.write(f"Critico encontro {len(feedback)} guion(es) con problemas (ronda {rounds})")
+                        elif node_name == "rewrite":
+                            st.write("Guiones reescritos con feedback del critico")
                         elif node_name == "compile":
                             st.write("Documento final compilado")
 
@@ -227,7 +277,7 @@ if st.button("Generar Plan de Contenido", type="primary", use_container_width=Tr
 
                 # Clear resume state on success
                 st.session_state.pop("last_thread_id", None)
-                st.session_state.pop("last_url", None)
+                st.session_state.pop("last_urls", None)
 
                 status.update(label="Plan generado exitosamente", state="complete")
 

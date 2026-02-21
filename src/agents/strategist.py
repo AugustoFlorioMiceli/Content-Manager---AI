@@ -18,6 +18,33 @@ NICHE_QUERIES = [
     "temas y formatos con mejor rendimiento",
 ]
 
+PLATFORM_GUIDELINES = {
+    "youtube": """DIRECTRICES PARA YOUTUBE (formato largo/horizontal):
+- Videos de 8-20 minutos ideales para autoridad y profundidad
+- Estructura: hook impactante + desarrollo con datos + CTA claro
+- Contenido educativo, tutoriales, análisis profundos, casos de estudio
+- Pattern interrupts cada 30-60 segundos (cambio de ángulo, gráficos, preguntas)
+- Los temas pueden ser complejos y detallados, el formato lo permite
+- content_type debe ser "video"
+""",
+    "instagram": """DIRECTRICES PARA INSTAGRAM (formato vertical/corto):
+- Reels de 30-90 segundos, dinámicos y visualmente atractivos
+- Hook en los primeros 2 segundos (pregunta provocativa, dato impactante, controversia)
+- UNA sola idea potente por reel, no intentar cubrir todo
+- Ritmo rápido: frases cortas, cortes rápidos, texto en pantalla
+- Contenido que genere guardados y compartidos
+- Buscar ideas llamativas, controversiales o sorprendentes del nicho
+- content_type debe ser "reel" o "carousel"
+""",
+    "tiktok": """DIRECTRICES PARA TIKTOK (formato vertical/corto):
+- Videos de 15-60 segundos, ultra dinámicos
+- Hook inmediato en el primer segundo
+- Tendencias y formatos virales del momento
+- Storytelling rápido, datos impactantes en formato snackable
+- content_type debe ser "short"
+""",
+}
+
 SYSTEM_INSTRUCTION = """Eres un estratega de contenido digital experto. Tu trabajo es diseñar calendarios editoriales
 de alto rendimiento basados en datos reales de un nicho específico.
 
@@ -26,6 +53,7 @@ CONTEXTO CRÍTICO:
 - El calendario es para un NUEVO creador que quiere posicionarse en ese nicho.
 - NUNCA uses nombres, identidades o personas de los creadores de referencia en los briefs.
 - Usa los datos como inteligencia de mercado: qué temas funcionan, qué formatos tienen mejor rendimiento, qué ángulos generan engagement.
+- ADAPTA el contenido al formato de la plataforma de destino. No es lo mismo un video largo de YouTube que un reel de Instagram.
 
 Reglas clave:
 - Cada pieza de contenido debe estar asignada a uno de los tres pilares: viralidad, autoridad o venta
@@ -87,7 +115,12 @@ def _build_strategy_prompt(
 Usa esta información para alinear la estrategia con la identidad de marca y estilo del usuario.
 """
 
-    return f"""Analiza el siguiente contexto de un nicho en {platform} y genera un calendario editorial.
+    platform_guide = PLATFORM_GUIDELINES.get(platform, "")
+
+    return f"""Analiza el siguiente contexto de un nicho y genera un calendario editorial para {platform.upper()}.
+
+## DIRECTRICES DE LA PLATAFORMA:
+{platform_guide}
 
 ## CONTEXTO DEL NICHO (datos reales extraídos):
 {niche_context}

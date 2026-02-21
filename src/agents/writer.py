@@ -14,6 +14,31 @@ from services.qdrant import search
 
 logger = logging.getLogger(__name__)
 
+PLATFORM_STYLE = {
+    "youtube": """ESTILO YOUTUBE (formato largo/horizontal):
+- Guion detallado de 8-20 minutos
+- Desarrollo profundo con datos, ejemplos y casos reales
+- Estructura clara: hook + introduccion + 3-5 puntos + cierre + CTA
+- Pattern interrupts cada 30-60 segundos
+- Lenguaje educativo pero conversacional
+- Notas de produccion: B-roll, graficos, cambios de plano""",
+    "instagram": """ESTILO INSTAGRAM (formato vertical/corto):
+- Guion de MAXIMO 60-90 segundos (300-400 palabras max)
+- UNA idea potente, NO un resumen de video largo
+- Hook en los primeros 2 segundos: pregunta provocativa, dato impactante o controversia
+- Frases CORTAS y directas. Ritmo rapido.
+- Texto en pantalla sugerido en las notas de produccion
+- NO ser enciclopedico. Ser punzante, llamativo, memorable.
+- Buscar el angulo mas sorprendente o controversial del tema
+- Formato: hook + desarrollo rapido (2-3 puntos max) + CTA en 1 frase""",
+    "tiktok": """ESTILO TIKTOK (formato vertical/ultra corto):
+- Guion de MAXIMO 30-60 segundos (150-250 palabras max)
+- Hook inmediato en el primer segundo
+- Una sola idea explosiva
+- Lenguaje ultra directo, sin rodeos
+- Formato snackable: dato + reaccion + conclusion""",
+}
+
 SYSTEM_INSTRUCTION = """Eres un redactor de guiones de contenido digital de élite. Tu trabajo es escribir guiones
 completos, listos para grabar, basados en briefs estratégicos y datos reales de un nicho.
 
@@ -23,14 +48,25 @@ CONTEXTO CRÍTICO:
 - Los guiones son para un NUEVO creador de contenido que quiere posicionarse en ese nicho.
 - Usa los datos de referencia como inspiración, tendencias y conocimiento del nicho, NO como identidad.
 - El guión debe estar escrito en primera persona genérica, sin asumir un nombre o título profesional específico.
+- ADAPTA la longitud, estructura y tono al formato de la plataforma indicada.
 
 Reglas clave:
-- El hook de apertura debe capturar atención en los primeros 3-5 segundos. Debe ser específico y provocativo.
-- Incluye pattern interrupts cada 30-60 segundos para mantener retención.
 - El CTA debe estar alineado al pilar de la pieza (viralidad=compartir, autoridad=seguir/guardar, venta=comprar/link).
 - Usa datos reales del nicho cuando sea posible para dar credibilidad.
-- Si se proporciona una plantilla del usuario, respeta esa estructura exacta e inyecta el contenido nuevo.
 - El tono debe ser conversacional y directo, como si hablaras a una persona.
+
+PRIORIDAD MAXIMA: Si el usuario proporcionó ejemplos de guiones, REPLICA EXACTAMENTE su estructura,
+formato, tono, longitud y estilo. Los ejemplos del usuario son la referencia principal de formato.
+
+FORMATO DE DIÁLOGO EN EL CAMPO "content" (OBLIGATORIO):
+El sistema aplica colores automáticamente según estos prefijos — respétalos siempre:
+- Líneas del ENTREVISTADOR o temas/categorías: EMPIEZAN CON "-"
+  Ejemplo: "-¿Qué opinas sobre Dubai?" o "-España"
+- Acotaciones de DIRECCIÓN o staging: entre paréntesis en línea propia o inline
+  Ejemplo: "(toma café)" o "Respuesta. (mirando a cámara)"
+- Respuestas del PRESENTADOR: texto plano sin prefijo
+  Ejemplo: "Honestamente no lo recomiendo si facturas bien."
+- Encabezados de sección temática (ej. intro al bloque de preguntas): texto plano sin "-"
 
 IMPORTANTE: Responde ÚNICAMENTE con un JSON válido, sin texto adicional ni markdown.
 """
@@ -53,22 +89,37 @@ def _get_niche_data_for_brief(collection_name: str, brief: ContentBrief) -> str:
 def _build_script_prompt(
     brief: ContentBrief,
     niche_data: str,
+    platform: str,
     template: str | None = None,
 ) -> str:
+    platform_guide = PLATFORM_STYLE.get(platform, "")
+
     template_section = ""
     if template:
         template_section = f"""
-## EJEMPLOS Y CONTEXTO DEL USUARIO:
+## EJEMPLOS Y CONTEXTO DEL USUARIO — PRIORIDAD MAXIMA:
 {template}
 
-INSTRUCCIONES SOBRE LOS EJEMPLOS:
-- Si hay ejemplos de guiones, REPLICA su estructura, formato, tono y estilo en los nuevos guiones.
-- Usa las mismas secciones, transiciones y nivel de detalle que muestran los ejemplos.
-- Si hay informacion de marca (tono de voz, valores, publico objetivo), alinea el contenido a esa identidad.
-- Adapta el contenido al tema del brief, pero mantene el formato y estilo de los ejemplos.
+INSTRUCCIONES OBLIGATORIAS (no negociables):
+1. ANALIZA la estructura exacta de los ejemplos: cuantas secciones tienen, como se llaman,
+   que tipo de contenido va en cada una, que largo tienen, que especificaciones de produccion incluyen.
+2. REPLICA esa misma estructura seccion por seccion. Si el ejemplo tiene "Hook", "Desarrollo",
+   "Caso de estudio", "CTA" — tu guion debe tener exactamente esas secciones con esos nombres.
+3. COPIA el tono, ritmo, longitud y nivel de detalle de cada seccion.
+4. Si los ejemplos incluyen especificaciones tecnicas (colores, fuentes, transiciones, texto en pantalla,
+   estilo visual), INCLUYELAS en las notas de produccion de cada seccion.
+5. El guion resultante debe ser INDISTINGUIBLE en formato de los ejemplos — como si lo hubiera
+   escrito la misma persona. Solo cambia el tema segun el brief.
+6. DIFERENCIACION VISUAL — CRITICO: El campo "content" de cada seccion DEBE usar este formato:
+   - Preguntas o temas del entrevistador: linea que EMPIEZA CON "-" (ej: "-¿Qué opinas?")
+   - Acotaciones de staging/direccion: entre paréntesis (ej: "(toma café)", "(mirando al otro personaje)")
+   - Respuestas del presentador: texto plano sin prefijo
 """
 
-    return f"""Escribe un guión completo para la siguiente pieza de contenido.
+    return f"""Escribe un guión para {platform.upper()} basado en el siguiente brief.
+
+## DIRECTRICES DE PLATAFORMA:
+{platform_guide}
 
 ## BRIEF:
 - Día: {brief.day} ({brief.date.isoformat()})
@@ -85,20 +136,22 @@ INSTRUCCIONES SOBRE LOS EJEMPLOS:
 {template_section}
 ## FORMATO DE RESPUESTA (JSON):
 {{
-    "hook": "Hook de apertura exacto (primeros 3-5 segundos del video/contenido)",
+    "hook": "Hook de apertura exacto",
     "sections": [
         {{
-            "title": "Nombre de la sección (ej: Introducción, Punto 1, Desarrollo, Cierre)",
-            "content": "Texto completo del guión para esta sección, escrito como se diría en cámara",
-            "notes": "Notas de producción opcionales (ej: mostrar gráfico, insertar B-roll)"
+            "title": "Nombre de la seccion (USA LOS MISMOS NOMBRES que los ejemplos del usuario si los hay)",
+            "content": "Texto completo de la seccion tal como se diria en camara",
+            "notes": "Especificaciones de produccion: colores, fuentes, transiciones, texto en pantalla, B-roll, graficos, etc."
         }}
     ],
     "cta": "Call-to-action de cierre alineado al pilar",
-    "retention_tips": ["Tip de retención 1", "Tip de retención 2"],
-    "strategic_justification": "Explicación breve de por qué este guión cumple el objetivo del brief"
+    "retention_tips": ["Tip de retencion 1", "Tip de retencion 2"],
+    "strategic_justification": "Explicacion breve de por que este guion cumple el objetivo del brief"
 }}
 
-Genera un guión completo con al menos 3 secciones. El contenido debe ser específico, no genérico."""
+IMPORTANTE: Las secciones del JSON deben REPLICAR las secciones de los ejemplos del usuario.
+Si el usuario tiene 5 secciones con nombres especificos, tu JSON debe tener 5 secciones con esos mismos nombres.
+Las notas de produccion deben incluir TODAS las especificaciones visuales y tecnicas relevantes."""
 
 
 def _extract_json(text: str) -> str:
@@ -200,7 +253,7 @@ def run_writer(
         niche_data = _get_niche_data_for_brief(collection_name, brief)
 
         # 2. Build prompt
-        prompt = _build_script_prompt(brief, niche_data, template)
+        prompt = _build_script_prompt(brief, niche_data, calendar.platform, template)
 
         # 3. Generate script with Gemini (retry once on parse failure)
         script = None
@@ -242,3 +295,88 @@ def run_writer(
         scripts=scripts,
         calendar=calendar,
     )
+
+
+def rewrite_script(
+    script: Script,
+    feedback: list[dict],
+    collection_name: str,
+    platform: str,
+    template: str | None = None,
+) -> Script:
+    """Rewrite a single script based on critic feedback."""
+    brief = script.brief
+
+    # Build feedback string
+    feedback_text = "\n".join(
+        f"- [{fb.get('type', 'general')}] {fb.get('description', '')} -> {fb.get('suggestion', '')}"
+        for fb in feedback
+    )
+
+    niche_data = _get_niche_data_for_brief(collection_name, brief)
+    platform_guide = PLATFORM_STYLE.get(platform, "")
+
+    template_section = ""
+    if template:
+        template_section = f"""
+## EJEMPLOS DEL USUARIO — FORMATO OBLIGATORIO:
+{template}
+
+REGLA PRINCIPAL: El guion reescrito DEBE usar las MISMAS secciones, nombres, estructura,
+especificaciones de produccion (colores, fuentes, transiciones, texto en pantalla) y longitud
+que los ejemplos. Analiza los ejemplos seccion por seccion y replicalos.
+"""
+
+    rewrite_prompt = f"""REESCRIBE este guión corrigiendo los problemas señalados.
+
+## GUIÓN ORIGINAL:
+Hook: {script.hook}
+{"".join(f"### {s.title}\n{s.content}\n(Notas: {s.notes})\n" for s in script.sections)}
+CTA: {script.cta}
+
+## PROBLEMAS DETECTADOS POR EL CRÍTICO (CORREGIR TODOS):
+{feedback_text}
+
+## DIRECTRICES DE PLATAFORMA ({platform.upper()}):
+{platform_guide}
+
+## BRIEF ORIGINAL:
+- Tema: {brief.topic}
+- Pilar: {brief.pillar}
+- Tipo: {brief.content_type}
+- Objetivo: {brief.objective}
+
+## DATOS DEL NICHO:
+{niche_data}
+{template_section}
+## REGLAS DE REESCRITURA:
+- Corrige TODOS los problemas señalados por el crítico.
+- ELIMINA cualquier frase genérica de IA (ej: "En el mundo de hoy", "Sin más preámbulos").
+- Usa lenguaje natural, directo y conversacional.
+- Si hay ejemplos del usuario, las secciones del guion DEBEN tener los mismos nombres y estructura.
+- Incluye especificaciones de produccion completas en las notas (colores, fuentes, transiciones, etc.).
+- FORMATO DE DIÁLOGO: líneas del entrevistador empiezan con "-", acotaciones van entre paréntesis,
+  respuestas del presentador son texto plano sin prefijo.
+
+## FORMATO DE RESPUESTA (JSON):
+{{
+    "hook": "Hook corregido",
+    "sections": [
+        {{
+            "title": "Nombre de seccion (MISMO que en los ejemplos del usuario)",
+            "content": "Contenido corregido",
+            "notes": "Especificaciones de produccion: colores, fuentes, transiciones, texto en pantalla, B-roll"
+        }}
+    ],
+    "cta": "CTA corregido",
+    "retention_tips": ["Tip 1", "Tip 2"],
+    "strategic_justification": "Justificación"
+}}"""
+
+    response = generate(rewrite_prompt, system_instruction=SYSTEM_INSTRUCTION)
+
+    try:
+        return _parse_script_response(response, brief)
+    except (json.JSONDecodeError, KeyError, ValueError) as e:
+        logger.error("Failed to parse rewritten script: %s", e)
+        return script  # Return original if rewrite fails

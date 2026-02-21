@@ -9,6 +9,13 @@ from models.strategy import CompilerResult, Script, WriterResult
 
 logger = logging.getLogger(__name__)
 
+# Script color coding (matches template: green=interviewer, red=directions, black=response)
+_GREEN = (46, 125, 50)
+_RED = (198, 40, 40)
+_BLACK = (0, 0, 0)
+_GREEN_HEX = "#2e7d32"
+_RED_HEX = "#c62828"
+
 
 def _sanitize_latin1(text: str) -> str:
     """Replace characters outside Latin-1 range with safe equivalents."""
@@ -32,6 +39,76 @@ PILLAR_LABELS = {
     "autoridad": "Autoridad",
     "venta": "Venta",
 }
+
+
+def _classify_line(line: str) -> str:
+    """Classify a script content line for color coding.
+
+    Returns 'green' (interviewer/question), 'red' (stage direction), or 'black' (response).
+    """
+    s = line.strip()
+    if not s:
+        return "empty"
+    if s.startswith("-"):
+        return "green"
+    if re.match(r"^\(.*\)$", s):
+        return "red"
+    if re.match(r"^Plano\s+\d+", s, re.IGNORECASE):
+        return "red"
+    return "black"
+
+
+def _render_content_pdf(pdf: FPDF, content: str, epw: float) -> None:
+    """Render script dialogue content with color differentiation per line."""
+    for raw_line in content.split("\n"):
+        s = raw_line.strip()
+        if not s:
+            pdf.ln(3)
+            continue
+
+        kind = _classify_line(s)
+        if kind == "green":
+            pdf.set_text_color(*_GREEN)
+            pdf.set_font("Helvetica", "B", 10)
+        elif kind == "red":
+            pdf.set_text_color(*_RED)
+            pdf.set_font("Helvetica", "I", 10)
+        else:
+            pdf.set_text_color(*_BLACK)
+            pdf.set_font("Helvetica", "", 10)
+
+        pdf.set_x(pdf.l_margin)
+        pdf.multi_cell(epw, 6, _sanitize_latin1(s))
+
+    # Reset to defaults after block
+    pdf.set_text_color(*_BLACK)
+    pdf.set_font("Helvetica", "", 10)
+
+
+def _color_content_md(content: str) -> str:
+    """Wrap content lines in HTML color spans for markdown rendering."""
+    result = []
+    for raw_line in content.split("\n"):
+        s = raw_line.strip()
+        if not s:
+            result.append("")
+            continue
+
+        kind = _classify_line(s)
+        if kind == "green":
+            result.append(f'<span style="color: {_GREEN_HEX}">**{s}**</span>')
+        elif kind == "red":
+            result.append(f'<span style="color: {_RED_HEX}">*{s}*</span>')
+        else:
+            # Color inline parentheticals red within black lines
+            colored = re.sub(
+                r"(\([^)]+\))",
+                lambda m: f'<span style="color: {_RED_HEX}"><em>{m.group(1)}</em></span>',
+                s,
+            )
+            result.append(colored)
+
+    return "\n\n".join(result)
 
 
 def _render_markdown(result: WriterResult) -> str:
@@ -137,10 +214,10 @@ def _render_script_md(lines: list[str], script: Script) -> None:
     for section in script.sections:
         lines.append(f"**{section.title}**")
         lines.append("")
-        lines.append(section.content)
+        lines.append(_color_content_md(section.content))
         lines.append("")
         if section.notes:
-            lines.append(f"_Nota de produccion: {section.notes}_")
+            lines.append(f'<span style="color: {_RED_HEX}">*Nota de produccion: {section.notes}*</span>')
             lines.append("")
 
     if script.cta:
@@ -289,17 +366,16 @@ def _render_script_pdf(pdf: FPDF, script: Script) -> None:
     # Secciones
     for section in script.sections:
         pdf.set_font("Helvetica", "B", 11)
+        pdf.set_text_color(*_BLACK)
         pdf.set_x(pdf.l_margin)
         pdf.multi_cell(epw, 7, _sanitize_latin1(section.title))
-        pdf.set_font("Helvetica", "", 10)
-        pdf.set_x(pdf.l_margin)
-        pdf.multi_cell(epw, 6, _sanitize_latin1(section.content))
+        _render_content_pdf(pdf, section.content, epw)
         if section.notes:
             pdf.set_font("Helvetica", "I", 9)
-            pdf.set_text_color(100, 100, 100)
+            pdf.set_text_color(*_RED)
             pdf.set_x(pdf.l_margin)
             pdf.multi_cell(epw, 6, _sanitize_latin1(f"Nota: {section.notes}"))
-            pdf.set_text_color(0, 0, 0)
+            pdf.set_text_color(*_BLACK)
         pdf.ln(2)
 
     # CTA

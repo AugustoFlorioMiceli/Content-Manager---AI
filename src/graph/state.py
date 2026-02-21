@@ -11,7 +11,7 @@ from models.strategy import (
 
 class PipelineState(TypedDict, total=False):
     # User inputs
-    url: str
+    urls: list[str]
     platforms: list[str]
     calendar_config: CalendarConfig | None
     template: str | None
@@ -23,6 +23,10 @@ class PipelineState(TypedDict, total=False):
     calendars: list[ContentCalendar]
     writer_results: list[WriterResult]
     compiler_results: list[CompilerResult]
+    # Critic
+    critic_approved: bool
+    critic_feedback: dict
+    critic_rounds: int
     # Control
     current_step: str
     error: str | None
