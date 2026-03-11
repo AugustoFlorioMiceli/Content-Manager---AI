@@ -39,6 +39,8 @@ Convierte los items extraídos en chunks y los almacena en Qdrant:
 ### 3. Strategist — `src/agents/strategist.py`
 Diseña el calendario editorial. Consulta Qdrant con 5 queries semánticas sobre el nicho, construye un prompt con directrices de plataforma y distribución de pilares (40% viralidad / 30% autoridad / 30% venta) y llama a Gemini para obtener los **briefs**: tema, ángulo, hook, objetivo, tipo de contenido y fecha.
 
+En el futuro consultará también la colección `viral_frameworks` filtrando por `objetivo`, `plataforma` y `tono_predominante` para inyectar patrones estructurales probados en los briefs.
+
 ---
 
 ### 4. Writer — `src/agents/writer.py`
@@ -71,3 +73,16 @@ Genera el documento final en dos formatos:
 - **PDF** (fpdf2): portada, resumen ejecutivo, tabla de calendario y guiones con los mismos colores
 
 El nombre del archivo incluye timestamp: `contentbrain_{platform}_{username}_{timestamp}.{ext}`
+
+---
+
+## Scripts de ingesta
+
+### `src/scripts/ingest_viral_frameworks.py`
+Pipeline independiente del nicho que construye la **Biblioteca de Frameworks Virales** (`viral_frameworks` en Qdrant):
+1. Recibe una lista de URLs (YouTube, Instagram, TikTok) vía CLI
+2. Extrae los top-3 posts por views con el `Extractor`
+3. Envía el contenido crudo a Gemini actuando como **Analista de Ingeniería Inversa** para extraer el framework estructural y psicológico abstracto (hook, loop, core structure, close, pacing, visual cues)
+4. Almacena el JSON resultante en Qdrant con embedding del `template_maestro`
+
+La colección tiene índices de payload en `metadata.objetivo`, `metadata.plataforma` y `metadata.tono_predominante` para filtrado exacto por el Strategist.
