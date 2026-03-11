@@ -55,6 +55,28 @@ def _normalize_youtube_url(url: str) -> str:
     return url
 
 
+def run_text_extractor(description: str, username: str, platform: str) -> ExtractionResult:
+    """Create a synthetic ExtractionResult from a user-provided niche/business description."""
+    from datetime import datetime, timezone
+
+    item = ContentItem(
+        platform=platform,
+        title="Descripción del negocio/nicho",
+        description=description,
+        transcript=description,
+        url="",
+        published_at=datetime.now(timezone.utc),
+        content_type="text",
+    )
+    return ExtractionResult(
+        source_url="",
+        platform=platform,
+        username=username,
+        items=[item],
+        extracted_at=datetime.now(timezone.utc),
+    )
+
+
 def run_extractor(url: str, limit: int = DEFAULT_EXTRACTION_LIMIT) -> ExtractionResult:
     platform = detect_platform(url)
     username = extract_username(url, platform)

@@ -7,7 +7,7 @@ from langgraph.graph import END, StateGraph
 
 from agents.compiler import run_compiler
 from agents.critic import run_critic
-from agents.extractor import run_extractor
+from agents.extractor import run_extractor, run_text_extractor
 from agents.indexer import run_indexer
 from agents.strategist import run_strategist
 from agents.writer import rewrite_script, run_writer
@@ -26,6 +26,16 @@ MAX_CRITIC_ROUNDS = 2
 def extract(state: PipelineState) -> dict:
     from datetime import datetime, timezone
     from models.content import ExtractionResult
+
+    input_mode = state.get("input_mode", "own_account")
+
+    if input_mode == "niche_description":
+        description = state.get("niche_description", "")
+        username = state.get("brand_name") or "mi_negocio"
+        platform = (state.get("platforms") or ["instagram"])[0]
+        logger.info("Step 1/6: Building extraction from niche description for @%s", username)
+        result = run_text_extractor(description, username, platform)
+        return {"extraction": result, "current_step": "extract"}
 
     urls = state["urls"]
     logger.info("Step 1/6: Extracting content from %d URL(s)", len(urls))
@@ -59,11 +69,12 @@ def strategize(state: PipelineState) -> dict:
     logger.info("Step 3/6: Generating content strategy")
     config = state.get("calendar_config")
     user_context = state.get("template")
+    input_mode = state.get("input_mode", "own_account")
     platforms = state.get("platforms") or [state["index_result"].platform]
 
     calendars = []
     for platform in platforms:
-        calendar = run_strategist(state["index_result"], config, user_context, platform)
+        calendar = run_strategist(state["index_result"], config, user_context, platform, input_mode)
         calendars.append(calendar)
 
     return {"calendars": calendars, "current_step": "strategize"}
@@ -73,10 +84,11 @@ def write(state: PipelineState) -> dict:
     logger.info("Step 4/6: Writing scripts")
     collection_name = state["index_result"].collection_name
     template = state.get("template")
+    input_mode = state.get("input_mode", "own_account")
 
     writer_results = []
     for calendar in state["calendars"]:
-        writer_result = run_writer(calendar, collection_name, template)
+        writer_result = run_writer(calendar, collection_name, template, input_mode)
         writer_results.append(writer_result)
 
     return {
@@ -106,6 +118,7 @@ def rewrite(state: PipelineState) -> dict:
     logger.info("Step 5/6: Rewriting scripts based on critic feedback")
     collection_name = state["index_result"].collection_name
     template = state.get("template")
+    input_mode = state.get("input_mode", "own_account")
     feedback = state.get("critic_feedback", {})
 
     new_writer_results = []
@@ -123,7 +136,7 @@ def rewrite(state: PipelineState) -> dict:
                     platform, i, script.brief.topic, len(script_feedback),
                 )
                 new_script = rewrite_script(
-                    script, script_feedback, collection_name, platform, template,
+                    script, script_feedback, collection_name, platform, template, input_mode,
                 )
                 new_scripts.append(new_script)
             else:

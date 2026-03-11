@@ -45,15 +45,10 @@ PLATFORM_GUIDELINES = {
 """,
 }
 
-SYSTEM_INSTRUCTION = """Eres un estratega de contenido digital experto. Tu trabajo es diseñar calendarios editoriales
+_SYSTEM_BASE = """Eres un estratega de contenido digital experto. Tu trabajo es diseñar calendarios editoriales
 de alto rendimiento basados en datos reales de un nicho específico.
 
-CONTEXTO CRÍTICO:
-- Los datos que recibes provienen de canales/cuentas de REFERENCIA analizados para entender el nicho.
-- El calendario es para un NUEVO creador que quiere posicionarse en ese nicho.
-- NUNCA uses nombres, identidades o personas de los creadores de referencia en los briefs.
-- Usa los datos como inteligencia de mercado: qué temas funcionan, qué formatos tienen mejor rendimiento, qué ángulos generan engagement.
-- ADAPTA el contenido al formato de la plataforma de destino. No es lo mismo un video largo de YouTube que un reel de Instagram.
+{context}
 
 Reglas clave:
 - Cada pieza de contenido debe estar asignada a uno de los tres pilares: viralidad, autoridad o venta
@@ -65,6 +60,24 @@ Reglas clave:
 
 IMPORTANTE: Responde ÚNICAMENTE con un JSON válido, sin texto adicional ni markdown.
 """
+
+_CONTEXT_OWN_ACCOUNT = """CONTEXTO CRÍTICO:
+- Los datos que recibes provienen de la PROPIA cuenta del creador.
+- El calendario es una CONTINUACIÓN Y EXPANSIÓN de su línea editorial actual.
+- Identifica qué temas, formatos y ángulos ya han funcionado para este creador y potencíalos.
+- Introduce variaciones y evoluciones naturales sobre los contenidos existentes, no repitas exactamente lo mismo.
+- ADAPTA el contenido al formato de la plataforma de destino."""
+
+_CONTEXT_NICHE_DESCRIPTION = """CONTEXTO CRÍTICO:
+- El creador está comenzando desde cero: los datos provienen de su descripción de negocio/nicho.
+- Diseña una estrategia optimizada para posicionarse en ese nicho desde el inicio.
+- Basa los briefs en las mejores prácticas del nicho descrito y las directrices de la plataforma.
+- ADAPTA el contenido al formato de la plataforma de destino."""
+
+
+def _get_system_instruction(input_mode: str) -> str:
+    context = _CONTEXT_OWN_ACCOUNT if input_mode == "own_account" else _CONTEXT_NICHE_DESCRIPTION
+    return _SYSTEM_BASE.format(context=context)
 
 
 def _query_niche_insights(collection_name: str) -> str:
@@ -86,6 +99,7 @@ def _build_strategy_prompt(
     config: CalendarConfig,
     platform: str,
     user_context: str | None = None,
+    input_mode: str = "own_account",
 ) -> str:
     total = config.total_posts
     virality = round(total * 0.4)
@@ -117,12 +131,18 @@ Usa esta información para alinear la estrategia con la identidad de marca y est
 
     platform_guide = PLATFORM_GUIDELINES.get(platform, "")
 
+    context_label = (
+        "TUS DATOS DE CONTENIDO (historial real de tu cuenta)"
+        if input_mode == "own_account"
+        else "DESCRIPCIÓN DE NICHO (información proporcionada por el creador)"
+    )
+
     return f"""Analiza el siguiente contexto de un nicho y genera un calendario editorial para {platform.upper()}.
 
 ## DIRECTRICES DE LA PLATAFORMA:
 {platform_guide}
 
-## CONTEXTO DEL NICHO (datos reales extraídos):
+## {context_label}:
 {niche_context}
 {user_context_section}
 
@@ -187,6 +207,7 @@ def run_strategist(
     config: CalendarConfig | None = None,
     user_context: str | None = None,
     platform: str | None = None,
+    input_mode: str = "own_account",
 ) -> ContentCalendar:
     if config is None:
         config = CalendarConfig()
@@ -206,10 +227,10 @@ def run_strategist(
     logger.info("Retrieved niche context (%d chars)", len(niche_context))
 
     # 2. Build prompt
-    prompt = _build_strategy_prompt(niche_context, config, target_platform, user_context)
+    prompt = _build_strategy_prompt(niche_context, config, target_platform, user_context, input_mode)
 
     # 3. Call Gemini
-    response = generate(prompt, system_instruction=SYSTEM_INSTRUCTION)
+    response = generate(prompt, system_instruction=_get_system_instruction(input_mode))
     logger.info("Received strategy response (%d chars)", len(response))
 
     # 4. Parse response

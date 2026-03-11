@@ -16,28 +16,60 @@ st.set_page_config(
 
 st.title("ContentBrain")
 st.caption(
-    "Transforma un perfil de referencia en un calendario editorial "
-    "de alto rendimiento, listo para ejecutar."
+    "Genera un calendario editorial de alto rendimiento, listo para ejecutar, "
+    "basado en tu propio contenido o en la descripcion de tu nicho."
 )
 
 st.divider()
 
-# --- Input principal ---
-url_input = st.text_area(
-    "URLs de perfiles de referencia",
-    placeholder="Pega una o varias URLs (una por linea):\nhttps://www.youtube.com/@canal\nhttps://www.instagram.com/cuenta",
-    height=100,
-    help="Podes pegar varias URLs de YouTube, Instagram o TikTok. "
-    "El sistema extraera contenido de todas para analizar el nicho.",
+# --- Modo de entrada ---
+input_mode_choice = st.radio(
+    "¿Cómo quieres empezar?",
+    options=["Tengo cuentas activas", "Estoy empezando desde cero"],
+    horizontal=True,
+    help="Si ya tenés contenido publicado, ingresá tus URLs. "
+    "Si estás empezando, describí tu negocio o nicho.",
 )
+input_mode = "own_account" if input_mode_choice == "Tengo cuentas activas" else "niche_description"
 
-# Parse URLs from input
-urls = [u.strip() for u in url_input.replace(",", "\n").split() if u.strip().startswith("http")]
-if urls:
-    st.caption(f"{len(urls)} URL(s) detectadas")
+st.divider()
+
+# --- Input principal según modo ---
+urls: list[str] = []
+niche_description: str | None = None
+brand_name: str | None = None
+
+if input_mode == "own_account":
+    url_input = st.text_area(
+        "Tus cuentas de redes sociales",
+        placeholder="Pega una o varias URLs de tus propias cuentas (una por linea):\nhttps://www.youtube.com/@tucanal\nhttps://www.instagram.com/tucuenta",
+        height=100,
+        help="Pega las URLs de tus propias cuentas de YouTube, Instagram o TikTok. "
+        "El sistema analizará tu contenido existente para diseñar una estrategia que lo continúe y potencie.",
+    )
+    urls = [u.strip() for u in url_input.replace(",", "\n").split() if u.strip().startswith("http")]
+    if urls:
+        st.caption(f"{len(urls)} URL(s) detectadas")
+else:
+    brand_name = st.text_input(
+        "Nombre de tu negocio o marca",
+        placeholder="Ej: Estudio Jurídico García, FitCoach por Ana, Tech Insights...",
+        help="Este nombre se usará como identificador en los documentos generados.",
+    )
+    niche_description = st.text_area(
+        "Describí tu negocio y nicho",
+        placeholder=(
+            "Contanos sobre tu negocio, a quién le hablás y qué tipo de contenido querés crear.\n\n"
+            "Ej: Soy coach de nutrición para mujeres de 30-45 años. Me especializo en alimentación "
+            "sin restricciones y hábitos sostenibles. Quiero crear contenido educativo y motivacional "
+            "en Instagram para atraer clientes a mis consultas online."
+        ),
+        height=160,
+        help="Cuanto más detallada sea la descripción, mejor será la estrategia generada. "
+        "Incluí tu especialidad, público objetivo, tono de voz y objetivos de negocio.",
+    )
 
 # --- Plataforma de destino ---
-# Auto-detect platforms from URLs
 def _detect_platforms_from_urls(url_list: list[str]) -> list[str]:
     detected = set()
     for u in url_list:
@@ -52,7 +84,6 @@ def _detect_platforms_from_urls(url_list: list[str]) -> list[str]:
 
 detected_platforms = _detect_platforms_from_urls(urls)
 
-# Set default based on detected platforms
 platform_options = ["YouTube", "Instagram", "TikTok", "Ambas (YT + IG)"]
 if detected_platforms == ["instagram"]:
     default_idx = 1
@@ -68,8 +99,7 @@ platform_choice = st.radio(
     options=platform_options,
     index=default_idx,
     horizontal=True,
-    help="Plataforma para la que se generara el calendario editorial. "
-    "Se auto-detecta de las URLs, pero podes cambiarlo.",
+    help="Plataforma para la que se generará el calendario editorial.",
 )
 
 if platform_choice == "YouTube":
@@ -153,17 +183,16 @@ def get_app():
     return compile_app()
 
 
-def generate_thread_id(urls: list[str]) -> str:
-    combined = " ".join(sorted(urls))
-    url_hash = hashlib.md5(combined.encode()).hexdigest()[:8]
-    return f"{url_hash}_{int(time.time())}"
+def generate_thread_id(key: str) -> str:
+    key_hash = hashlib.md5(key.encode()).hexdigest()[:8]
+    return f"{key_hash}_{int(time.time())}"
 
 
-def check_resumable(app, urls: list[str]):
+def check_resumable(app, session_key: str):
     prev_thread = st.session_state.get("last_thread_id")
-    prev_urls = st.session_state.get("last_urls")
+    prev_key = st.session_state.get("last_session_key")
 
-    if prev_thread and prev_urls == urls:
+    if prev_thread and prev_key == session_key:
         config = {"configurable": {"thread_id": prev_thread}}
         try:
             state = app.get_state(config)
@@ -187,8 +216,15 @@ NODE_PROGRESS = {
 
 # --- Generar ---
 if st.button("Generar Plan de Contenido", type="primary", use_container_width=True):
-    if not urls:
-        st.error("Por favor, pega al menos una URL de un perfil de YouTube, Instagram o TikTok.")
+    input_valid = (
+        (input_mode == "own_account" and urls)
+        or (input_mode == "niche_description" and niche_description and niche_description.strip())
+    )
+    if not input_valid:
+        if input_mode == "own_account":
+            st.error("Por favor, pega al menos una URL de tu cuenta de YouTube, Instagram o TikTok.")
+        else:
+            st.error("Por favor, describí tu negocio o nicho antes de continuar.")
     elif not output_formats:
         st.error("Selecciona al menos un formato de salida.")
     else:
@@ -202,8 +238,11 @@ if st.button("Generar Plan de Contenido", type="primary", use_container_width=Tr
 
         app = get_app()
 
+        # Build a stable session key for resumability
+        session_key = " ".join(sorted(urls)) if input_mode == "own_account" else (niche_description or "")
+
         # Check for resumable state
-        resume_thread, resume_state = check_resumable(app, urls)
+        resume_thread, resume_state = check_resumable(app, session_key)
 
         if resume_thread:
             thread_id = resume_thread
@@ -211,9 +250,12 @@ if st.button("Generar Plan de Contenido", type="primary", use_container_width=Tr
             completed_step = resume_state.get("current_step", "")
             st.info(f"Reanudando desde el ultimo paso exitoso ({completed_step})")
         else:
-            thread_id = generate_thread_id(urls)
+            thread_id = generate_thread_id(session_key)
             input_data = {
+                "input_mode": input_mode,
                 "urls": urls,
+                "niche_description": niche_description,
+                "brand_name": brand_name or None,
                 "platforms": platforms,
                 "calendar_config": config,
                 "template": template_text,
@@ -225,7 +267,7 @@ if st.button("Generar Plan de Contenido", type="primary", use_container_width=Tr
 
         # Save for resume on next run
         st.session_state["last_thread_id"] = thread_id
-        st.session_state["last_urls"] = urls
+        st.session_state["last_session_key"] = session_key
 
         with st.status("Generando plan de contenido...", expanded=True) as status:
             try:
@@ -235,7 +277,10 @@ if st.button("Generar Plan de Contenido", type="primary", use_container_width=Tr
                     for node_name, node_output in event.items():
                         if node_name == "extract" and node_output.get("extraction"):
                             ext = node_output["extraction"]
-                            st.write(f"Extraidos {len(ext.items)} items de @{ext.username}")
+                            if input_mode == "own_account":
+                                st.write(f"Extraidos {len(ext.items)} items de @{ext.username}")
+                            else:
+                                st.write(f"Descripcion de nicho procesada para @{ext.username}")
                         elif node_name == "index" and node_output.get("index_result"):
                             idx = node_output["index_result"]
                             st.write(f"Indexados {idx.chunks_indexed} chunks")
@@ -277,7 +322,7 @@ if st.button("Generar Plan de Contenido", type="primary", use_container_width=Tr
 
                 # Clear resume state on success
                 st.session_state.pop("last_thread_id", None)
-                st.session_state.pop("last_urls", None)
+                st.session_state.pop("last_session_key", None)
 
                 status.update(label="Plan generado exitosamente", state="complete")
 

@@ -39,21 +39,16 @@ PLATFORM_STYLE = {
 - Formato snackable: dato + reaccion + conclusion""",
 }
 
-SYSTEM_INSTRUCTION = """Eres un redactor de guiones de contenido digital de élite. Tu trabajo es escribir guiones
+_WRITER_SYSTEM_BASE = """Eres un redactor de guiones de contenido digital de élite. Tu trabajo es escribir guiones
 completos, listos para grabar, basados en briefs estratégicos y datos reales de un nicho.
 
-CONTEXTO CRÍTICO:
-- Los "datos del nicho" que recibes provienen de canales/cuentas de REFERENCIA que fueron analizados.
-- NUNCA adoptes la identidad, nombre, o persona de los creadores de esos canales de referencia.
-- Los guiones son para un NUEVO creador de contenido que quiere posicionarse en ese nicho.
-- Usa los datos de referencia como inspiración, tendencias y conocimiento del nicho, NO como identidad.
-- El guión debe estar escrito en primera persona genérica, sin asumir un nombre o título profesional específico.
-- ADAPTA la longitud, estructura y tono al formato de la plataforma indicada.
+{context}
 
 Reglas clave:
 - El CTA debe estar alineado al pilar de la pieza (viralidad=compartir, autoridad=seguir/guardar, venta=comprar/link).
 - Usa datos reales del nicho cuando sea posible para dar credibilidad.
 - El tono debe ser conversacional y directo, como si hablaras a una persona.
+- ADAPTA la longitud, estructura y tono al formato de la plataforma indicada.
 
 PRIORIDAD MAXIMA: Si el usuario proporcionó ejemplos de guiones, REPLICA EXACTAMENTE su estructura,
 formato, tono, longitud y estilo. Los ejemplos del usuario son la referencia principal de formato.
@@ -70,6 +65,26 @@ El sistema aplica colores automáticamente según estos prefijos — respétalos
 
 IMPORTANTE: Responde ÚNICAMENTE con un JSON válido, sin texto adicional ni markdown.
 """
+
+_WRITER_CONTEXT_OWN_ACCOUNT = """CONTEXTO CRÍTICO:
+- Los datos que recibes son del PROPIO canal/cuenta del creador.
+- Los guiones deben sentirse como una continuación natural de su contenido existente: mismo tono, misma voz, mismo estilo.
+- Usa sus temas y ángulos ya probados como base, pero introduce perspectivas frescas.
+- Escribe en primera persona, manteniendo la identidad y voz del creador."""
+
+_WRITER_CONTEXT_NICHE_DESCRIPTION = """CONTEXTO CRÍTICO:
+- El creador está comenzando desde cero en este nicho.
+- Los guiones deben estar escritos en primera persona genérica, sin asumir una identidad específica.
+- Usa el conocimiento del nicho como base para dar credibilidad y profundidad al contenido.
+- El tono debe ser auténtico y accesible, ideal para un creador que se está posicionando."""
+
+
+def _get_writer_system_instruction(input_mode: str) -> str:
+    context = (
+        _WRITER_CONTEXT_OWN_ACCOUNT if input_mode == "own_account"
+        else _WRITER_CONTEXT_NICHE_DESCRIPTION
+    )
+    return _WRITER_SYSTEM_BASE.format(context=context)
 
 
 def _get_niche_data_for_brief(collection_name: str, brief: ContentBrief) -> str:
@@ -91,6 +106,7 @@ def _build_script_prompt(
     niche_data: str,
     platform: str,
     template: str | None = None,
+    input_mode: str = "own_account",
 ) -> str:
     platform_guide = PLATFORM_STYLE.get(platform, "")
 
@@ -131,7 +147,7 @@ INSTRUCCIONES OBLIGATORIAS (no negociables):
 - Tipo de contenido: {brief.content_type}
 - Datos de referencia: {', '.join(brief.reference_data) if brief.reference_data else 'N/A'}
 
-## DATOS DEL NICHO (extraídos de canales de referencia - usar como inspiración, NO adoptar la identidad de estos creadores):
+## {"TUS DATOS DE CONTENIDO (extraídos de tu propia cuenta)" if input_mode == "own_account" else "DATOS DEL NICHO (basados en la descripción del creador)"}:
 {niche_data}
 {template_section}
 ## FORMATO DE RESPUESTA (JSON):
@@ -232,6 +248,7 @@ def run_writer(
     calendar: ContentCalendar,
     collection_name: str,
     template: str | None = None,
+    input_mode: str = "own_account",
 ) -> WriterResult:
     logger.info(
         "Writing scripts for @%s: %d briefs",
@@ -253,12 +270,13 @@ def run_writer(
         niche_data = _get_niche_data_for_brief(collection_name, brief)
 
         # 2. Build prompt
-        prompt = _build_script_prompt(brief, niche_data, calendar.platform, template)
+        prompt = _build_script_prompt(brief, niche_data, calendar.platform, template, input_mode)
 
         # 3. Generate script with Gemini (retry once on parse failure)
         script = None
+        system_instruction = _get_writer_system_instruction(input_mode)
         for attempt in range(2):
-            response = generate(prompt, system_instruction=SYSTEM_INSTRUCTION)
+            response = generate(prompt, system_instruction=system_instruction)
             try:
                 script = _parse_script_response(response, brief)
                 break
@@ -303,6 +321,7 @@ def rewrite_script(
     collection_name: str,
     platform: str,
     template: str | None = None,
+    input_mode: str = "own_account",
 ) -> Script:
     """Rewrite a single script based on critic feedback."""
     brief = script.brief
@@ -373,7 +392,7 @@ CTA: {script.cta}
     "strategic_justification": "Justificación"
 }}"""
 
-    response = generate(rewrite_prompt, system_instruction=SYSTEM_INSTRUCTION)
+    response = generate(rewrite_prompt, system_instruction=_get_writer_system_instruction(input_mode))
 
     try:
         return _parse_script_response(response, brief)
