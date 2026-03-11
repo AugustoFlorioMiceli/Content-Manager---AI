@@ -59,6 +59,25 @@ def upsert_chunks(
     logger.info("Upserted %d chunks into '%s'", len(points), collection_name)
 
 
+def ensure_viral_frameworks_collection() -> None:
+    ensure_collection("viral_frameworks")
+    client = get_client()
+    for field in ("metadata.objetivo", "metadata.plataforma", "metadata.tono_predominante"):
+        client.create_payload_index(
+            collection_name="viral_frameworks",
+            field_name=field,
+            field_schema=models.PayloadSchemaType.KEYWORD,
+        )
+    logger.info("Payload indexes ensured on viral_frameworks collection")
+
+
+def upsert_viral_framework(framework: dict, embedding: list[float], point_id: str) -> None:
+    client = get_client()
+    point = models.PointStruct(id=point_id, vector=embedding, payload=framework)
+    client.upsert(collection_name="viral_frameworks", points=[point])
+    logger.info("Upserted viral framework '%s'", point_id)
+
+
 def search(
     collection_name: str,
     query_embedding: list[float],
