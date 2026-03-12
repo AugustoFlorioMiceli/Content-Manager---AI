@@ -78,6 +78,49 @@ def upsert_viral_framework(framework: dict, embedding: list[float], point_id: st
     logger.info("Upserted viral framework '%s'", point_id)
 
 
+def search_viral_frameworks(
+    query_embedding: list[float],
+    objetivo: str,
+    plataforma: str,
+    tono: str | None = None,
+    limit: int = 2,
+) -> list[dict]:
+    """Query viral_frameworks filtered by objetivo + plataforma (+ optional tono).
+    Falls back to objetivo+plataforma only if the tone filter returns no results.
+    Returns [] gracefully if the collection doesn't exist yet.
+    """
+    client = get_client()
+
+    base_conditions = [
+        models.FieldCondition(key="metadata.objetivo", match=models.MatchValue(value=objetivo)),
+        models.FieldCondition(key="metadata.plataforma", match=models.MatchValue(value=plataforma)),
+    ]
+
+    def _run(conditions: list) -> list[dict]:
+        results = client.query_points(
+            collection_name="viral_frameworks",
+            query=query_embedding,
+            query_filter=models.Filter(must=conditions),
+            limit=limit,
+        )
+        return [{"score": p.score, **p.payload} for p in results.points]
+
+    try:
+        if tono:
+            results = _run(base_conditions + [
+                models.FieldCondition(
+                    key="metadata.tono_predominante",
+                    match=models.MatchValue(value=tono),
+                )
+            ])
+            if results:
+                return results
+        return _run(base_conditions)
+    except Exception as exc:
+        logger.warning("viral_frameworks search failed (%s), skipping", exc)
+        return []
+
+
 def search(
     collection_name: str,
     query_embedding: list[float],

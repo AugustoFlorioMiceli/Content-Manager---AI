@@ -70,11 +70,14 @@ def strategize(state: PipelineState) -> dict:
     config = state.get("calendar_config")
     user_context = state.get("template")
     input_mode = state.get("input_mode", "own_account")
+    niche_description = state.get("niche_description")
     platforms = state.get("platforms") or [state["index_result"].platform]
 
     calendars = []
     for platform in platforms:
-        calendar = run_strategist(state["index_result"], config, user_context, platform, input_mode)
+        calendar = run_strategist(
+            state["index_result"], config, user_context, platform, input_mode, niche_description
+        )
         calendars.append(calendar)
 
     return {"calendars": calendars, "current_step": "strategize"}
